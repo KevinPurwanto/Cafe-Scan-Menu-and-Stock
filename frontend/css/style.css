@@ -1,0 +1,326 @@
+/* ============================================
+   STYLE.CSS - Custom CSS untuk Cafe Scan Menu
+   ============================================
+
+   File ini berisi custom styling tambahan.
+   Sebagian besar styling sudah menggunakan Tailwind CSS,
+   jadi file ini hanya berisi styling khusus yang tidak bisa
+   dicapai dengan Tailwind utility classes.
+*/
+
+/* ========================================
+   GLOBAL STYLES
+   ======================================== */
+
+/* Smooth scrolling untuk semua anchor links */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar untuk webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* ========================================
+   ANIMATIONS
+   ======================================== */
+
+/* Fade in animation untuk elements yang baru muncul */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Spin animation untuk loading spinner (sudah ada di Tailwind tapi kita define sendiri) */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    animation: spin 1s linear infinite;
+}
+
+/* ========================================
+   QR SCANNER CUSTOM STYLES
+   ======================================== */
+
+/* Override default styling dari html5-qrcode library */
+#qr-reader {
+    border-radius: 12px;
+    overflow: hidden;
+}
+
+/* Style untuk video stream dari camera */
+#qr-reader video {
+    border-radius: 12px;
+}
+
+/* Style untuk QR scan box */
+#qr-reader canvas {
+    border-radius: 12px;
+}
+
+/* Hide default button dari library (karena kita punya custom button) */
+#qr-reader button {
+    display: none !important;
+}
+
+/* ========================================
+   CART SIDEBAR CUSTOM STYLES
+   ======================================== */
+
+/* Overlay backdrop ketika cart terbuka (di mobile) */
+@media (max-width: 768px) {
+    #cart-sidebar:not(.translate-x-full)::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background-color: rgba(0, 0, 0, 0.5);
+        z-index: -1;
+    }
+}
+
+/* ========================================
+   MODAL CUSTOM STYLES
+   ======================================== */
+
+/* Smooth fade in untuk modal */
+#checkout-modal,
+#success-modal,
+#modal {
+    animation: fadeIn 0.2s ease-in-out;
+}
+
+/* ========================================
+   CUSTOM COMPONENTS
+   ======================================== */
+
+/* Button dengan loading state */
+button[disabled] {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+/* Input focus glow effect (tambahan dari Tailwind) */
+input:focus,
+select:focus,
+textarea:focus {
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* Card hover effect */
+.card-hover {
+    transition: all 0.3s ease;
+}
+
+.card-hover:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+                0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+/* ========================================
+   UTILITY CLASSES
+   ======================================== */
+
+/* Text gradient (untuk heading yang keren) */
+.text-gradient {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Glass morphism effect (for modern UI) */
+.glass {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Pulse animation untuk notification badge */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* ========================================
+   RESPONSIVE TWEAKS
+   ======================================== */
+
+/* Pada mobile, text jangan terlalu besar */
+@media (max-width: 640px) {
+    h1 {
+        font-size: 1.875rem; /* 30px */
+    }
+
+    h2 {
+        font-size: 1.5rem; /* 24px */
+    }
+}
+
+/* Pada tablet, adjust spacing */
+@media (min-width: 768px) and (max-width: 1024px) {
+    .container {
+        padding-left: 2rem;
+        padding-right: 2rem;
+    }
+}
+
+/* ========================================
+   PRINT STYLES (untuk print laporan)
+   ======================================== */
+
+@media print {
+    /* Hide navigation, buttons, dll ketika print */
+    nav,
+    button,
+    .no-print {
+        display: none !important;
+    }
+
+    /* Full width untuk content */
+    .container {
+        max-width: 100% !important;
+        padding: 0 !important;
+    }
+
+    /* Remove background colors untuk save ink */
+    * {
+        background: white !important;
+        color: black !important;
+    }
+}
+
+/* ========================================
+   ACCESSIBILITY
+   ======================================== */
+
+/* Focus visible untuk keyboard navigation */
+*:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Screen reader only content */
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+}
+
+/* ========================================
+   CUSTOM TRANSITIONS
+   ======================================== */
+
+/* Smooth transition untuk semua interactive elements */
+button,
+a,
+input,
+select {
+    transition: all 0.2s ease-in-out;
+}
+
+/* ========================================
+   BADGE STYLES
+   ======================================== */
+
+.badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.25rem 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 9999px;
+}
+
+.badge-success {
+    background-color: #dcfce7;
+    color: #166534;
+}
+
+.badge-warning {
+    background-color: #fef3c7;
+    color: #92400e;
+}
+
+.badge-danger {
+    background-color: #fee2e2;
+    color: #991b1b;
+}
+
+.badge-info {
+    background-color: #dbeafe;
+    color: #1e40af;
+}
+
+/* ========================================
+   SKELETON LOADING
+   ======================================== */
+
+/* Skeleton loading animation untuk placeholder content */
+@keyframes skeleton-loading {
+    0% {
+        background-position: -200px 0;
+    }
+    100% {
+        background-position: calc(200px + 100%) 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, #f0f0f0 0px, #f8f8f8 40px, #f0f0f0 80px);
+    background-size: 200px 100%;
+    animation: skeleton-loading 1.5s ease-in-out infinite;
+}
+
+/* ========================================
+   END OF CUSTOM STYLES
+   ======================================== */

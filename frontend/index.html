@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <!-- Meta tags untuk charset dan viewport (responsive design) -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Title yang muncul di tab browser -->
+    <title>Cafe Scan Menu - Pempek Yenny</title>
+
+    <!-- Import Tailwind CSS dari CDN untuk styling modern -->
+    <!-- CDN = Content Delivery Network, tidak perlu download -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS kita -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+
+    <!-- Container utama, centered dan responsive -->
+    <div class="container mx-auto px-4 py-8 md:py-16">
+
+        <!-- Header/Logo Section -->
+        <div class="text-center mb-12">
+            <!-- Icon Cafe (menggunakan emoji) -->
+            <div class="text-6xl mb-4">☕</div>
+
+            <!-- Judul Cafe -->
+            <h1 class="text-4xl md:text-5xl font-bold text-gray-800 mb-2">
+                Pempek Yenny
+            </h1>
+
+            <!-- Subtitle -->
+            <p class="text-gray-600 text-lg">
+                Sistem Pemesanan Digital dengan QR Code
+            </p>
+        </div>
+
+        <!-- Cards Container - Grid untuk 2 kolom di desktop, 1 kolom di mobile -->
+        <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+
+            <!-- ========================================
+                 CARD CUSTOMER
+                 ======================================== -->
+            <div class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-shadow duration-300">
+                <!-- Icon Customer -->
+                <div class="text-5xl mb-4 text-center">🍽️</div>
+
+                <!-- Judul Card -->
+                <h2 class="text-2xl font-bold text-gray-800 mb-3 text-center">
+                    Customer
+                </h2>
+
+                <!-- Deskripsi -->
+                <p class="text-gray-600 mb-6 text-center">
+                    Scan QR Code di meja untuk mulai memesan menu
+                </p>
+
+                <!-- Fitur List -->
+                <ul class="space-y-3 mb-6">
+                    <li class="flex items-start">
+                        <!-- Checkmark icon -->
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Scan QR Code di meja</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Lihat menu & harga</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Pesan tanpa antri</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Bayar dengan Cash/QRIS</span>
+                    </li>
+                </ul>
+
+                <!-- Button untuk ke halaman customer -->
+                <!-- onclick: jalankan fungsi JavaScript ketika diklik -->
+                <button
+                    onclick="window.location.href='customer.html'"
+                    class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
+                >
+                    Mulai Pesan
+                </button>
+            </div>
+
+            <!-- ========================================
+                 CARD ADMIN
+                 ======================================== -->
+            <div class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-shadow duration-300">
+                <!-- Icon Admin -->
+                <div class="text-5xl mb-4 text-center">👨‍💼</div>
+
+                <!-- Judul Card -->
+                <h2 class="text-2xl font-bold text-gray-800 mb-3 text-center">
+                    Admin
+                </h2>
+
+                <!-- Deskripsi -->
+                <p class="text-gray-600 mb-6 text-center">
+                    Kelola menu, pesanan, dan lihat laporan penjualan
+                </p>
+
+                <!-- Fitur List -->
+                <ul class="space-y-3 mb-6">
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Kelola meja & QR code</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Kelola menu & stok</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Monitor pesanan real-time</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Laporan penjualan harian</span>
+                    </li>
+                </ul>
+
+                <!-- Button untuk ke halaman admin -->
+                <button
+                    onclick="window.location.href='admin.html'"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
+                >
+                    Login Admin
+                </button>
+            </div>
+
+        </div>
+
+        <!-- Footer / Info Section -->
+        <div class="text-center mt-12 text-gray-600">
+            <p class="mb-2">Powered by modern web technology</p>
+            <p class="text-sm">Backend API + QR Code Scanner + Real-time Updates</p>
+        </div>
+
+        <!-- Demo Info - Hapus ini di production -->
+        <div class="max-w-2xl mx-auto mt-8 bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded">
+            <div class="flex">
+                <div class="flex-shrink-0">
+                    <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                    </svg>
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm text-yellow-700">
+                        <strong>Mode Demo:</strong> Pastikan backend API sudah running di <code class="bg-yellow-100 px-2 py-1 rounded">http://localhost:3000</code>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Import config.js untuk setup API -->
+    <script src="js/config.js"></script>
+
+    <!-- Script untuk test koneksi API (optional) -->
+    <script>
+        // Function untuk test koneksi ke backend
+        // Berjalan otomatis ketika halaman dimuat
+        async function testConnection() {
+            try {
+                // Hit endpoint /health untuk check apakah backend hidup
+                const response = await apiGet('/health');
+
+                // Jika sukses, log ke console
+                console.log('✅ Backend connected:', response);
+            } catch (error) {
+                // Jika error, tampilkan warning
+                console.warn('⚠️ Backend not connected. Make sure backend is running at http://localhost:3000');
+                console.warn('Error:', error.message);
+            }
+        }
+
+        // Jalankan test koneksi ketika halaman selesai load
+        // window.onload = event yang trigger ketika semua resource sudah loaded
+        window.onload = testConnection;
+    </script>
+
+</body>
+</html>

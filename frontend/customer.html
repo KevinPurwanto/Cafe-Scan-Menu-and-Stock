@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer - Pempek Yenny</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- html5-qrcode Library untuk QR Scanner -->
+    <!-- Library ini memungkinkan kita scan QR code menggunakan camera HP/laptop -->
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+    <!-- ========================================
+         NAVIGATION BAR
+         ======================================== -->
+    <nav class="bg-white shadow-md sticky top-0 z-50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <!-- Logo / Brand -->
+            <div class="flex items-center space-x-2">
+                <span class="text-2xl">☕</span>
+                <span class="font-bold text-xl text-gray-800">Pempek Yenny</span>
+            </div>
+
+            <!-- Cart Button - Badge untuk jumlah item -->
+            <button
+                id="cart-button"
+                onclick="toggleCart()"
+                class="relative bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+                <!-- Icon Cart (menggunakan SVG) -->
+                <svg class="w-6 h-6 inline" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                </svg>
+                <!-- Badge jumlah item di cart -->
+                <span id="cart-count" class="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    0
+                </span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- ========================================
+         MAIN CONTENT CONTAINER
+         ======================================== -->
+    <div class="container mx-auto px-4 py-6">
+
+        <!-- ========================================
+             SECTION 1: QR SCANNER (Default view ketika belum ada table)
+             ======================================== -->
+        <div id="scanner-section" class="mb-6">
+            <div class="bg-white rounded-lg shadow-md p-6">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4 text-center">
+                    📷 Scan QR Code Meja
+                </h2>
+                <p class="text-gray-600 text-center mb-4">
+                    Arahkan kamera ke QR code yang ada di meja Anda
+                </p>
+
+                <!-- Container untuk QR Scanner -->
+                <!-- Library html5-qrcode akan render scanner di sini -->
+                <div id="qr-reader" class="mb-4 mx-auto" style="max-width: 500px;"></div>
+
+                <!-- Button Start/Stop Scanner -->
+                <div class="flex gap-3 justify-center">
+                    <button
+                        id="start-scan-btn"
+                        onclick="startQrScanner()"
+                        class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+                    >
+                        Start Scanner
+                    </button>
+                    <button
+                        id="stop-scan-btn"
+                        onclick="stopQrScanner()"
+                        class="hidden bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg transition-colors"
+                    >
+                        Stop Scanner
+                    </button>
+                </div>
+
+                <!-- Divider -->
+                <div class="my-6 flex items-center">
+                    <div class="flex-1 border-t border-gray-300"></div>
+                    <span class="px-4 text-gray-500">atau</span>
+                    <div class="flex-1 border-t border-gray-300"></div>
+                </div>
+
+                <!-- Manual Input untuk Table Number (jika QR scanner tidak bisa) -->
+                <div class="max-w-md mx-auto">
+                    <label class="block text-gray-700 font-semibold mb-2">
+                        Masukkan Nomor Meja Secara Manual:
+                    </label>
+                    <div class="flex gap-2">
+                        <!-- Input number -->
+                        <input
+                            type="number"
+                            id="manual-table-input"
+                            placeholder="Contoh: 1"
+                            min="1"
+                            class="flex-1 border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                        <!-- Button submit -->
+                        <button
+                            onclick="manualTableInput()"
+                            class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg transition-colors"
+                        >
+                            OK
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================
+             SECTION 2: TABLE INFO (Muncul setelah scan QR / input manual)
+             ======================================== -->
+        <div id="table-info" class="hidden mb-6">
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <div class="flex justify-between items-center">
+                    <div>
+                        <p class="text-gray-600 text-sm">Anda di:</p>
+                        <!-- Table number akan diisi oleh JavaScript -->
+                        <p id="current-table" class="text-xl font-bold text-blue-600">Meja -</p>
+                    </div>
+                    <!-- Button untuk ganti meja -->
+                    <button
+                        onclick="changTable()"
+                        class="text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                        Ganti Meja
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================
+             SECTION 3: CATEGORY TABS
+             ======================================== -->
+        <div id="category-section" class="hidden mb-6">
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <h3 class="text-lg font-bold text-gray-800 mb-3">Kategori Menu</h3>
+                <!-- Category buttons akan di-generate oleh JavaScript -->
+                <div id="category-tabs" class="flex gap-2 overflow-x-auto pb-2">
+                    <!-- Category buttons will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ========================================
+             SECTION 4: MENU ITEMS
+             ======================================== -->
+        <div id="menu-section" class="hidden mb-20">
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Menu</h3>
+            <!-- Menu items akan di-generate oleh JavaScript -->
+            <div id="menu-items" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <!-- Menu items will be inserted here -->
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ========================================
+         CART SIDEBAR (Slide dari kanan)
+         ======================================== -->
+    <div
+        id="cart-sidebar"
+        class="fixed top-0 right-0 h-full w-full md:w-96 bg-white shadow-2xl transform translate-x-full transition-transform duration-300 z-50 flex flex-col"
+    >
+        <!-- Cart Header -->
+        <div class="bg-blue-600 text-white p-4 flex justify-between items-center">
+            <h3 class="text-xl font-bold">Keranjang</h3>
+            <!-- Button Close Cart -->
+            <button onclick="toggleCart()" class="text-white hover:text-gray-200">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Cart Items Container (scrollable) -->
+        <div class="flex-1 overflow-y-auto p-4">
+            <div id="cart-items">
+                <!-- Cart items akan di-generate oleh JavaScript -->
+                <p class="text-gray-500 text-center py-8">Keranjang kosong</p>
+            </div>
+        </div>
+
+        <!-- Cart Footer (Total & Checkout Button) -->
+        <div class="border-t p-4 bg-gray-50">
+            <!-- Total Price -->
+            <div class="flex justify-between items-center mb-4">
+                <span class="text-lg font-bold text-gray-800">Total:</span>
+                <span id="cart-total" class="text-2xl font-bold text-blue-600">Rp 0</span>
+            </div>
+
+            <!-- Checkout Button -->
+            <button
+                id="checkout-btn"
+                onclick="checkout()"
+                disabled
+                class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white font-bold py-3 rounded-lg transition-colors"
+            >
+                Checkout
+            </button>
+        </div>
+    </div>
+
+    <!-- ========================================
+         CHECKOUT MODAL (Popup untuk pilih payment method)
+         ======================================== -->
+    <div
+        id="checkout-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    >
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6">
+            <h3 class="text-2xl font-bold text-gray-800 mb-4">Konfirmasi Pesanan</h3>
+
+            <!-- Order Summary -->
+            <div class="mb-6">
+                <div class="flex justify-between mb-2">
+                    <span class="text-gray-600">Total Items:</span>
+                    <span id="modal-item-count" class="font-semibold">0</span>
+                </div>
+                <div class="flex justify-between mb-4">
+                    <span class="text-gray-600">Total Harga:</span>
+                    <span id="modal-total" class="text-xl font-bold text-blue-600">Rp 0</span>
+                </div>
+            </div>
+
+            <!-- Payment Method Selection -->
+            <div class="mb-6">
+                <label class="block text-gray-700 font-semibold mb-3">Pilih Metode Pembayaran:</label>
+
+                <!-- Cash Option -->
+                <label class="flex items-center p-4 border-2 border-gray-300 rounded-lg mb-3 cursor-pointer hover:border-blue-500 transition-colors">
+                    <input
+                        type="radio"
+                        name="payment-method"
+                        value="cash"
+                        class="mr-3"
+                        checked
+                    >
+                    <div class="flex-1">
+                        <span class="font-semibold">💵 Cash</span>
+                        <p class="text-sm text-gray-600">Bayar di kasir</p>
+                    </div>
+                </label>
+
+                <!-- QRIS Option -->
+                <label class="flex items-center p-4 border-2 border-gray-300 rounded-lg cursor-pointer hover:border-blue-500 transition-colors">
+                    <input
+                        type="radio"
+                        name="payment-method"
+                        value="qris"
+                        class="mr-3"
+                    >
+                    <div class="flex-1">
+                        <span class="font-semibold">📱 QRIS</span>
+                        <p class="text-sm text-gray-600">Scan QR untuk bayar</p>
+                    </div>
+                </label>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex gap-3">
+                <!-- Cancel Button -->
+                <button
+                    onclick="closeCheckoutModal()"
+                    class="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-3 rounded-lg transition-colors"
+                >
+                    Batal
+                </button>
+
+                <!-- Confirm Button -->
+                <button
+                    onclick="confirmOrder()"
+                    id="confirm-order-btn"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
+                >
+                    Konfirmasi
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         ORDER SUCCESS MODAL
+         ======================================== -->
+    <div
+        id="success-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+    >
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6 text-center">
+            <!-- Success Icon -->
+            <div class="text-6xl mb-4">✅</div>
+
+            <h3 class="text-2xl font-bold text-gray-800 mb-2">Pesanan Berhasil!</h3>
+            <p class="text-gray-600 mb-4">Pesanan Anda sedang diproses</p>
+
+            <!-- Order ID -->
+            <div class="bg-gray-100 p-4 rounded-lg mb-4">
+                <p class="text-sm text-gray-600 mb-1">Order ID:</p>
+                <p id="order-id" class="font-mono font-bold text-gray-800">-</p>
+            </div>
+
+            <!-- Payment Instructions -->
+            <div id="payment-instructions" class="mb-6 text-left">
+                <!-- Will be filled by JavaScript based on payment method -->
+            </div>
+
+            <!-- Close Button -->
+            <button
+                onclick="closeSuccessModal()"
+                class="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition-colors"
+            >
+                OK
+            </button>
+        </div>
+    </div>
+
+    <!-- Import Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/customer.js"></script>
+
+</body>
+</html>
