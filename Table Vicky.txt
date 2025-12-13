@@ -1,0 +1,674 @@
+CREATE TABLE tables (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    table_number INT NOT NULL UNIQUE,
+    qr_code TEXT NOT NULL,
+    is_active BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+
+CREATE TABLE menu_categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE menu_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    category_id UUID REFERENCES menu_categories(id),
+    name VARCHAR(150) NOT NULL,
+    price INT NOT NULL,
+    stock INT NOT NULL DEFAULT 0,
+    is_available BOOLEAN DEFAULT true,
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE orders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    table_id UUID REFERENCES tables(id),
+    status VARCHAR(20) DEFAULT 'pending', 
+    -- pending | paid | cancelled
+    total_price INT DEFAULT 0,
+    payment_method VARCHAR(20),
+    -- cash | qris
+    created_at TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE order_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
+    menu_item_id UUID REFERENCES menu_items(id),
+    quantity INT NOT NULL,
+    price INT NOT NULL
+);
+
+CREATE TABLE payments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    order_id UUID REFERENCES orders(id),
+    method VARCHAR(20),
+    -- cash | qris
+    status VARCHAR(20),
+    -- pending | success | failed
+    paid_at TIMESTAMP
+);
+
+
+
+Kamu tinggal:
+
+buat folder project
+
+copy paste file-file ini sesuai path
+
+isi .env
+
+jalankan npm i + npx prisma db push + npm run dev
+
+Struktur folder
+cafe-backend/
+├─ package.json
+├─ tsconfig.json
+├─ .env.example
+├─ prisma/
+│  └─ schema.prisma
+└─ src/
+   ├─ index.ts
+   ├─ app.ts
+   ├─ db.ts
+   ├─ utils/
+   │  ├─ env.ts
+   │  └─ errors.ts
+   ├─ middleware/
+   │  └─ adminAuth.ts
+   ├─ routes/
+   │  ├─ health.routes.ts
+   │  ├─ tables.routes.ts
+   │  ├─ menu.routes.ts
+   │  ├─ orders.routes.ts
+   │  └─ reports.routes.ts
+   └─ modules/
+      ├─ tables/
+      │  └─ tables.controller.ts
+      ├─ menu/
+      │  └─ menu.controller.ts
+      ├─ orders/
+      │  └─ orders.controller.ts
+      └─ reports/
+         └─ reports.controller.ts
+
+1) package.json
+{
+  "name": "cafe-backend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "prisma:generate": "prisma generate",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.0.0",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^20.12.12",
+    "prisma": "^6.0.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.6.3"
+  }
+}
+
+2) tsconfig.json
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "outDir": "dist",
+    "rootDir": "src",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+
+3) .env.example
+PORT=3000
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
+
+# sederhana dulu untuk proteksi endpoint admin (CRUD)
+ADMIN_API_KEY="change-me"
+
+
+DATABASE_URL ambil dari Supabase → Project Settings → Database → Connection string (pilih “URI”).
+
+4) prisma/schema.prisma
+
+Ini pakai nama tabel yang kita buat sebelumnya: tables, menu_categories, menu_items, orders, order_items, payments.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Table {
+  id          String   @id @default(uuid())
+  tableNumber Int      @unique @map("table_number")
+  qrCode      String   @map("qr_code")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("tables")
+}
+
+model MenuCategory {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String   @id @default(uuid())
+  categoryId  String?  @map("category_id")
+  name        String   @db.VarChar(150)
+  price       Int
+  stock       Int      @default(0)
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  category MenuCategory? @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@map("menu_items")
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  tableId       String?  @map("table_id")
+  status        String   @default("pending") @db.VarChar(20)
+  totalPrice    Int      @default(0) @map("total_price")
+  paymentMethod String?  @map("payment_method") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  table Table? @relation(fields: [tableId], references: [id])
+  items OrderItem[]
+  payments Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String @id @default(uuid())
+  orderId    String @map("order_id")
+  menuItemId String @map("menu_item_id")
+  quantity   Int
+  price      Int
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id      String   @id @default(uuid())
+  orderId String   @map("order_id")
+  method  String?  @db.VarChar(20)
+  status  String?  @db.VarChar(20)
+  paidAt  DateTime? @map("paid_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
+
+5) src/utils/env.ts
+export function requireEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
+
+6) src/utils/errors.ts
+import { NextFunction, Request, Response } from "express";
+
+export class HttpError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+export function errorHandler(err: any, _req: Request, res: Response, _next: NextFunction) {
+  const status = err?.status ?? 500;
+  const message = err?.message ?? "Internal Server Error";
+  res.status(status).json({ success: false, message });
+}
+
+7) src/db.ts
+import { PrismaClient } from "@prisma/client";
+
+export const prisma = new PrismaClient();
+
+8) src/middleware/adminAuth.ts
+import { NextFunction, Request, Response } from "express";
+import { HttpError } from "../utils/errors";
+
+export function adminAuth(req: Request, _res: Response, next: NextFunction) {
+  const key = req.header("x-api-key");
+  if (!process.env.ADMIN_API_KEY) throw new Error("Missing env: ADMIN_API_KEY");
+  if (key !== process.env.ADMIN_API_KEY) throw new HttpError(401, "Unauthorized");
+  next();
+}
+
+9) src/app.ts
+import express from "express";
+import cors from "cors";
+import { errorHandler } from "./utils/errors";
+
+import healthRoutes from "./routes/health.routes";
+import tablesRoutes from "./routes/tables.routes";
+import menuRoutes from "./routes/menu.routes";
+import ordersRoutes from "./routes/orders.routes";
+import reportsRoutes from "./routes/reports.routes";
+
+export function createApp() {
+  const app = express();
+  app.use(cors());
+  app.use(express.json());
+
+  app.use("/health", healthRoutes);
+  app.use("/tables", tablesRoutes);
+  app.use("/menu", menuRoutes);
+  app.use("/orders", ordersRoutes);
+  app.use("/reports", reportsRoutes);
+
+  app.use(errorHandler);
+  return app;
+}
+
+10) src/index.ts
+import { createApp } from "./app";
+import { requireEnv } from "./utils/env";
+
+const app = createApp();
+const port = Number(process.env.PORT ?? 3000);
+
+requireEnv("DATABASE_URL");
+
+app.listen(port, () => {
+  console.log(`API running on http://localhost:${port}`);
+});
+
+ROUTES + CONTROLLERS
+11) src/routes/health.routes.ts
+import { Router } from "express";
+const r = Router();
+
+r.get("/", (_req, res) => res.json({ success: true, message: "ok" }));
+
+export default r;
+
+12) src/routes/tables.routes.ts
+import { Router } from "express";
+import { adminAuth } from "../middleware/adminAuth";
+import * as c from "../modules/tables/tables.controller";
+
+const r = Router();
+
+// public: resolve table by table_number (for QR flow)
+r.get("/by-number/:tableNumber", c.getByNumber);
+
+// admin
+r.get("/", adminAuth, c.list);
+r.post("/", adminAuth, c.create);
+r.patch("/:id", adminAuth, c.update);
+r.delete("/:id", adminAuth, c.remove);
+
+export default r;
+
+src/modules/tables/tables.controller.ts
+import { Request, Response } from "express";
+import { z } from "zod";
+import { prisma } from "../../db";
+import { HttpError } from "../../utils/errors";
+
+export async function list(_req: Request, res: Response) {
+  const data = await prisma.table.findMany({ orderBy: { tableNumber: "asc" } });
+  res.json({ success: true, data });
+}
+
+export async function getByNumber(req: Request, res: Response) {
+  const tableNumber = Number(req.params.tableNumber);
+  if (!Number.isFinite(tableNumber)) throw new HttpError(400, "Invalid tableNumber");
+
+  const table = await prisma.table.findUnique({ where: { tableNumber } });
+  if (!table || !table.isActive) throw new HttpError(404, "Table not found");
+  res.json({ success: true, data: table });
+}
+
+const CreateSchema = z.object({
+  tableNumber: z.number().int().positive(),
+  qrCode: z.string().min(5),
+  isActive: z.boolean().optional()
+});
+
+export async function create(req: Request, res: Response) {
+  const body = CreateSchema.parse(req.body);
+  const data = await prisma.table.create({ data: body });
+  res.status(201).json({ success: true, data });
+}
+
+const UpdateSchema = z.object({
+  tableNumber: z.number().int().positive().optional(),
+  qrCode: z.string().min(5).optional(),
+  isActive: z.boolean().optional()
+});
+
+export async function update(req: Request, res: Response) {
+  const body = UpdateSchema.parse(req.body);
+  const data = await prisma.table.update({ where: { id: req.params.id }, data: body });
+  res.json({ success: true, data });
+}
+
+export async function remove(req: Request, res: Response) {
+  await prisma.table.delete({ where: { id: req.params.id } });
+  res.json({ success: true });
+}
+
+13) src/routes/menu.routes.ts
+import { Router } from "express";
+import { adminAuth } from "../middleware/adminAuth";
+import * as c from "../modules/menu/menu.controller";
+
+const r = Router();
+
+// public
+r.get("/categories", c.listCategories);
+r.get("/items", c.listItems);
+
+// admin
+r.post("/categories", adminAuth, c.createCategory);
+r.post("/items", adminAuth, c.createItem);
+r.patch("/items/:id", adminAuth, c.updateItem);
+r.delete("/items/:id", adminAuth, c.removeItem);
+
+export default r;
+
+src/modules/menu/menu.controller.ts
+import { Request, Response } from "express";
+import { z } from "zod";
+import { prisma } from "../../db";
+
+export async function listCategories(_req: Request, res: Response) {
+  const data = await prisma.menuCategory.findMany({ orderBy: { name: "asc" } });
+  res.json({ success: true, data });
+}
+
+export async function listItems(req: Request, res: Response) {
+  const categoryId = req.query.category_id?.toString();
+  const onlyAvailable = (req.query.only_available?.toString() ?? "true") === "true";
+
+  const data = await prisma.menuItem.findMany({
+    where: {
+      ...(categoryId ? { categoryId } : {}),
+      ...(onlyAvailable ? { isAvailable: true } : {})
+    },
+    orderBy: { createdAt: "desc" },
+    include: { category: true }
+  });
+
+  res.json({ success: true, data });
+}
+
+const CreateCategorySchema = z.object({ name: z.string().min(2).max(100) });
+
+export async function createCategory(req: Request, res: Response) {
+  const body = CreateCategorySchema.parse(req.body);
+  const data = await prisma.menuCategory.create({ data: body });
+  res.status(201).json({ success: true, data });
+}
+
+const CreateItemSchema = z.object({
+  categoryId: z.string().uuid().optional(),
+  name: z.string().min(2).max(150),
+  price: z.number().int().min(0),
+  stock: z.number().int().min(0).optional(),
+  isAvailable: z.boolean().optional()
+});
+
+export async function createItem(req: Request, res: Response) {
+  const body = CreateItemSchema.parse(req.body);
+  const data = await prisma.menuItem.create({ data: body });
+  res.status(201).json({ success: true, data });
+}
+
+const UpdateItemSchema = z.object({
+  categoryId: z.string().uuid().nullable().optional(),
+  name: z.string().min(2).max(150).optional(),
+  price: z.number().int().min(0).optional(),
+  stock: z.number().int().min(0).optional(),
+  isAvailable: z.boolean().optional()
+});
+
+export async function updateItem(req: Request, res: Response) {
+  const body = UpdateItemSchema.parse(req.body);
+  const data = await prisma.menuItem.update({ where: { id: req.params.id }, data: body as any });
+  res.json({ success: true, data });
+}
+
+export async function removeItem(req: Request, res: Response) {
+  await prisma.menuItem.delete({ where: { id: req.params.id } });
+  res.json({ success: true });
+}
+
+14) src/routes/orders.routes.ts
+import { Router } from "express";
+import { adminAuth } from "../middleware/adminAuth";
+import * as c from "../modules/orders/orders.controller";
+
+const r = Router();
+
+// customer
+r.post("/", c.createOrder);                 // create order (pending)
+r.get("/:id", c.getOrderDetail);            // view order
+r.post("/:id/pay", c.payOrder);             // mark paid + reduce stock (cash/qris)
+
+// admin
+r.get("/", adminAuth, c.listOrders);
+
+export default r;
+
+src/modules/orders/orders.controller.ts
+import { Request, Response } from "express";
+import { z } from "zod";
+import { prisma } from "../../db";
+import { HttpError } from "../../utils/errors";
+
+const CreateOrderSchema = z.object({
+  tableId: z.string().uuid(),
+  items: z.array(
+    z.object({
+      menuItemId: z.string().uuid(),
+      quantity: z.number().int().positive()
+    })
+  ).min(1)
+});
+
+export async function createOrder(req: Request, res: Response) {
+  const body = CreateOrderSchema.parse(req.body);
+
+  // load menu items (price, stock, available)
+  const menuIds = body.items.map(i => i.menuItemId);
+  const menuItems = await prisma.menuItem.findMany({ where: { id: { in: menuIds } } });
+
+  const map = new Map(menuItems.map(m => [m.id, m]));
+  for (const it of body.items) {
+    const m = map.get(it.menuItemId);
+    if (!m) throw new HttpError(400, `menu item not found: ${it.menuItemId}`);
+    if (!m.isAvailable) throw new HttpError(400, `menu item not available: ${m.name}`);
+    if (m.stock < it.quantity) throw new HttpError(400, `stock not enough: ${m.name}`);
+  }
+
+  const totalPrice = body.items.reduce((sum, it) => {
+    const m = map.get(it.menuItemId)!;
+    return sum + (m.price * it.quantity);
+  }, 0);
+
+  const order = await prisma.order.create({
+    data: {
+      tableId: body.tableId,
+      status: "pending",
+      totalPrice,
+      items: {
+        create: body.items.map(it => ({
+          menuItemId: it.menuItemId,
+          quantity: it.quantity,
+          price: map.get(it.menuItemId)!.price
+        }))
+      }
+    },
+    include: { items: true }
+  });
+
+  res.status(201).json({ success: true, data: order });
+}
+
+export async function getOrderDetail(req: Request, res: Response) {
+  const data = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: {
+      table: true,
+      items: { include: { menuItem: true } },
+      payments: true
+    }
+  });
+  if (!data) throw new HttpError(404, "Order not found");
+  res.json({ success: true, data });
+}
+
+export async function listOrders(req: Request, res: Response) {
+  const status = req.query.status?.toString();
+  const data = await prisma.order.findMany({
+    where: status ? { status } : {},
+    orderBy: { createdAt: "desc" },
+    include: { table: true }
+  });
+  res.json({ success: true, data });
+}
+
+const PaySchema = z.object({
+  method: z.enum(["cash", "qris"])
+});
+
+export async function payOrder(req: Request, res: Response) {
+  const { method } = PaySchema.parse(req.body);
+
+  const order = await prisma.order.findUnique({
+    where: { id: req.params.id },
+    include: { items: true }
+  });
+  if (!order) throw new HttpError(404, "Order not found");
+  if (order.status !== "pending") throw new HttpError(400, `Order status is ${order.status}`);
+
+  // IMPORTANT: transaction - reduce stock + mark paid + create payment
+  const result = await prisma.$transaction(async (tx) => {
+    // recheck stock with lock-ish approach (best-effort)
+    const menuIds = order.items.map(i => i.menuItemId);
+    const menuItems = await tx.menuItem.findMany({ where: { id: { in: menuIds } } });
+    const map = new Map(menuItems.map(m => [m.id, m]));
+    for (const it of order.items) {
+      const m = map.get(it.menuItemId);
+      if (!m) throw new HttpError(400, "menu item missing");
+      if (m.stock < it.quantity) throw new HttpError(400, `stock not enough: ${m.name}`);
+    }
+
+    // reduce stock
+    for (const it of order.items) {
+      await tx.menuItem.update({
+        where: { id: it.menuItemId },
+        data: { stock: { decrement: it.quantity } }
+      });
+    }
+
+    // mark order paid
+    const updatedOrder = await tx.order.update({
+      where: { id: order.id },
+      data: { status: "paid", paymentMethod: method }
+    });
+
+    // create payment row
+    const payment = await tx.payment.create({
+      data: {
+        orderId: order.id,
+        method,
+        status: "success",
+        paidAt: new Date()
+      }
+    });
+
+    return { updatedOrder, payment };
+  });
+
+  res.json({ success: true, data: result });
+}
+
+15) src/routes/reports.routes.ts
+import { Router } from "express";
+import { adminAuth } from "../middleware/adminAuth";
+import * as c from "../modules/reports/reports.controller";
+
+const r = Router();
+
+// admin only
+r.get("/daily", adminAuth, c.dailyReport);
+
+export default r;
+
+src/modules/reports/reports.controller.ts
+import { Request, Response } from "express";
+import { prisma } from "../../db";
+import { HttpError } from "../../utils/errors";
+
+export async function dailyReport(req: Request, res: Response) {
+  // ?date=2025-12-13
+  const dateStr = req.query.date?.toString();
+  if (!dateStr) throw new HttpError(400, "date is required. example: ?date=2025-12-13");
+
+  const start = new Date(`${dateStr}T00:00:00.000Z`);
+  const end = new Date(`${dateStr}T23:59:59.999Z`);
+
+  const orders = await prisma.order.findMany({
+    where: { createdAt: { gte: start, lte: end }, status: "paid" },
+    include: { table: true }
+  });
+
+  const revenue = orders.reduce((s, o) => s + o.totalPrice, 0);
+  const count = orders.length;
+
+  const byMethod = orders.reduce<Record<string, number>>((acc, o) => {
+    const k = o.paymentMethod ?? "unknown";
+    acc[k] = (acc[k] ?? 0) + o.totalPrice;
+    return acc;
+  }, {});
+
+  res.json({ success: true, data: { date: dateStr, count, revenue, byMethod } });
+}
+

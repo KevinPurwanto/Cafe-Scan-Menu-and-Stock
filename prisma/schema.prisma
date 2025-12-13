@@ -1,0 +1,85 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Table {
+  id          String   @id @default(uuid())
+  tableNumber Int      @unique @map("table_number")
+  qrCode      String   @map("qr_code")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  orders Order[]
+
+  @@map("tables")
+}
+
+model MenuCategory {
+  id        String   @id @default(uuid())
+  name      String   @db.VarChar(100)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  items MenuItem[]
+
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id          String   @id @default(uuid())
+  categoryId  String?  @map("category_id")
+  name        String   @db.VarChar(150)
+  price       Int
+  stock       Int      @default(0)
+  isAvailable Boolean  @default(true) @map("is_available")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  category MenuCategory? @relation(fields: [categoryId], references: [id])
+  orderItems OrderItem[]
+
+  @@map("menu_items")
+}
+
+model Order {
+  id            String   @id @default(uuid())
+  tableId       String?  @map("table_id")
+  status        String   @default("pending") @db.VarChar(20)
+  totalPrice    Int      @default(0) @map("total_price")
+  paymentMethod String?  @map("payment_method") @db.VarChar(20)
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  table Table? @relation(fields: [tableId], references: [id])
+  items OrderItem[]
+  payments Payment[]
+
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String @id @default(uuid())
+  orderId    String @map("order_id")
+  menuItemId String @map("menu_item_id")
+  quantity   Int
+  price      Int
+
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+
+  @@map("order_items")
+}
+
+model Payment {
+  id      String   @id @default(uuid())
+  orderId String   @map("order_id")
+  method  String?  @db.VarChar(20)
+  status  String?  @db.VarChar(20)
+  paidAt  DateTime? @map("paid_at")
+
+  order Order @relation(fields: [orderId], references: [id])
+
+  @@map("payments")
+}
