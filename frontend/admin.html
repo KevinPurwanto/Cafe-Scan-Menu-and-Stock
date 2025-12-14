@@ -232,6 +232,35 @@
                         </div>
                     </div>
 
+                    <!-- Export Controls -->
+                    <div class="mb-6">
+                        <h4 class="text-lg font-bold text-gray-800 mb-3">Export Penjualan (Excel)</h4>
+                        <div class="grid md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Periode</label>
+                                <select id="export-period" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                    <option value="day">Perhari</option>
+                                    <option value="month">Perbulan</option>
+                                    <option value="year">Pertahun</option>
+                                    <option value="range">Range Tanggal</option>
+                                    <option value="all">All Time</option>
+                                </select>
+                            </div>
+                            <div id="export-inputs" class="md:col-span-2 grid grid-cols-2 gap-3">
+                                <div>
+                                    <label class="block text-gray-700 text-sm mb-1">Tanggal</label>
+                                    <input type="date" id="export-date" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onclick="exportSales()"
+                            class="mt-4 bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg"
+                        >
+                            Download Excel
+                        </button>
+                    </div>
+
                     <!-- Report Content -->
                     <div id="report-content">
                         <p class="text-gray-500 text-center py-8">Pilih tanggal untuk melihat laporan</p>

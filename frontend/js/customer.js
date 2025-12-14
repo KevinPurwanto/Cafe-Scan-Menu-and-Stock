@@ -122,9 +122,7 @@ async function onScanSuccess(decodedText, decodedResult) {
     // Stop scanner
     stopQrScanner();
 
-    // Parse table number dari QR code
-    // Asumsi: QR code berisi angka table number (contoh: "1", "5", "10")
-    const tableNumber = parseInt(decodedText);
+    const tableNumber = extractTableNumber(decodedText);
 
     // Validasi apakah table number valid
     if (isNaN(tableNumber) || tableNumber < 1) {
@@ -134,6 +132,35 @@ async function onScanSuccess(decodedText, decodedResult) {
 
     // Fetch table data dari API berdasarkan table number
     await fetchTableByNumber(tableNumber);
+}
+
+/**
+ * Ambil nomor meja dari payload QR (support angka langsung atau URL dengan query ?table=)
+ * @param {string} decodedText
+ */
+function extractTableNumber(decodedText) {
+    // Case 1: payload hanya angka
+    const direct = parseInt(decodedText, 10);
+    if (!isNaN(direct) && direct > 0) return direct;
+
+    // Case 2: payload berupa URL dengan query table
+    try {
+        const url = new URL(decodedText);
+        const tableParam = url.searchParams.get('table');
+        const fromQuery = tableParam ? parseInt(tableParam, 10) : NaN;
+        if (!isNaN(fromQuery) && fromQuery > 0) return fromQuery;
+    } catch (_err) {
+        // not a URL, fallback below
+    }
+
+    // Case 3: cari digit terakhir
+    const match = decodedText.match(/(\\d+)/);
+    if (match) {
+        const fallback = parseInt(match[1], 10);
+        if (!isNaN(fallback) && fallback > 0) return fallback;
+    }
+
+    return NaN;
 }
 
 /**

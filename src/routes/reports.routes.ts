@@ -8,5 +8,6 @@ const r = Router();
 // admin only - all reports require authentication
 r.get("/daily", adminAuth, asyncHandler(c.dailyReport));
 r.get("/summary", adminAuth, asyncHandler(c.summaryReport));
+r.get("/export", adminAuth, asyncHandler(c.exportSales));
 
 export default r;

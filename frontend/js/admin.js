@@ -14,6 +14,7 @@ let orders = [];
 let categories = [];
 let menuItems = [];
 let tables = [];
+let confirmActionCallback = null;
 
 // Track current active tab
 let currentTab = 'orders';
@@ -40,6 +41,12 @@ window.onload = function() {
     const dateInput = document.getElementById('report-date');
     if (dateInput) {
         dateInput.value = today;
+    }
+
+    const periodSelect = document.getElementById('export-period');
+    if (periodSelect) {
+        renderExportInputs();
+        periodSelect.addEventListener('change', renderExportInputs);
     }
 };
 
@@ -94,10 +101,16 @@ async function login(event) {
  * Function untuk logout admin
  */
 function logout() {
-    // Konfirmasi dulu
-    if (!confirm('Yakin ingin logout?')) {
-        return;
-    }
+    openConfirmModal({
+        title: 'Logout',
+        message: 'Yakin ingin logout dari dashboard?',
+        confirmText: 'Logout',
+        confirmClass: 'bg-red-500 hover:bg-red-600',
+        onConfirm: () => performLogout()
+    });
+}
+
+function performLogout() {
 
     // Clear API key dari memory dan sessionStorage
     adminApiKey = null;
@@ -377,10 +390,18 @@ async function submitAddCategory(event) {
 /**
  * Function untuk delete category
  */
-async function deleteCategory(categoryId) {
-    if (!confirm('Yakin ingin menghapus kategori ini?')) return;
+function deleteCategory(categoryId) {
+    openConfirmModal({
+        title: 'Hapus Kategori',
+        message: 'Kategori akan dihapus permanen.',
+        confirmText: 'Hapus',
+        onConfirm: () => confirmDeleteCategory(categoryId)
+    });
+}
 
+async function confirmDeleteCategory(categoryId) {
     try {
+        closeModal();
         await apiDelete(`/menu/categories/${categoryId}`, {
             'x-api-key': adminApiKey
         });
@@ -566,10 +587,18 @@ async function submitAddMenuItem(event) {
 /**
  * Function untuk delete menu item
  */
-async function deleteMenuItem(itemId) {
-    if (!confirm('Yakin ingin menghapus menu item ini?')) return;
+function deleteMenuItem(itemId) {
+    openConfirmModal({
+        title: 'Hapus Menu',
+        message: 'Menu item akan dihapus permanen.',
+        confirmText: 'Hapus',
+        onConfirm: () => confirmDeleteMenuItem(itemId)
+    });
+}
 
+async function confirmDeleteMenuItem(itemId) {
     try {
+        closeModal();
         await apiDelete(`/menu/items/${itemId}`, {
             'x-api-key': adminApiKey
         });
@@ -625,30 +654,45 @@ function renderTables() {
 
     tables.forEach(table => {
         const card = document.createElement('div');
-        card.className = 'border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow';
+        card.className = 'border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow bg-white';
 
         card.innerHTML = `
-            <div class="text-center mb-3">
-                <p class="text-3xl mb-2">🪑</p>
-                <p class="text-2xl font-bold text-gray-800">Meja ${table.tableNumber}</p>
+            <div class="flex items-start justify-between mb-3">
+                <div>
+                    <p class="text-sm text-gray-500">ID ${table.id.substring(0, 8)}...</p>
+                    <p class="text-2xl font-bold text-gray-800">Meja ${table.tableNumber}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${table.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}">
+                    ${table.isActive ? 'Active' : 'Inactive'}
+                </span>
             </div>
 
-            <div class="text-sm text-gray-600 mb-3">
-                <p><span class="font-semibold">QR Code:</span> ${table.qrCode}</p>
-                <p>
-                    <span class="font-semibold">Status:</span>
-                    <span class="${table.isActive ? 'text-green-600' : 'text-red-600'}">
-                        ${table.isActive ? '✓ Active' : '✗ Inactive'}
-                    </span>
-                </p>
+            <div class="bg-gray-50 rounded-lg p-3 mb-3 text-center">
+                ${table.qrCode
+                    ? `
+                        <img src="${table.qrCode}" alt="QR Meja ${table.tableNumber}" class="mx-auto h-40 w-40 object-contain" />
+                        <a href="${table.qrCode}" download="meja-${table.tableNumber}.png" class="text-indigo-600 font-semibold text-sm inline-block mt-2">
+                            Download QR
+                        </a>
+                    `
+                    : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
+                }
             </div>
 
-            <button
-                onclick="deleteTable('${table.id}')"
-                class="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 rounded-lg"
-            >
-                Hapus Meja
-            </button>
+            <div class="grid grid-cols-2 gap-2">
+                <button
+                    onclick="showEditTableForm('${table.id}')"
+                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white text-sm py-2 rounded-lg"
+                >
+                    Edit
+                </button>
+                <button
+                    onclick="confirmDeleteTable('${table.id}', ${table.tableNumber})"
+                    class="w-full bg-red-500 hover:bg-red-600 text-white text-sm py-2 rounded-lg"
+                >
+                    Hapus
+                </button>
+            </div>
         `;
 
         grid.appendChild(card);
@@ -677,21 +721,11 @@ function showAddTableForm() {
                 >
             </div>
             <div>
-                <label class="block text-gray-700 font-semibold mb-2">QR Code</label>
-                <input
-                    type="text"
-                    id="table-qrcode"
-                    placeholder="Contoh: QR_TABLE_1"
-                    required
-                    class="w-full border border-gray-300 rounded-lg px-4 py-2"
-                >
-                <p class="text-xs text-gray-500 mt-1">QR Code akan di-scan oleh customer</p>
-            </div>
-            <div>
                 <label class="flex items-center">
                     <input type="checkbox" id="table-active" checked class="mr-2">
                     <span class="text-gray-700">Meja aktif</span>
                 </label>
+                <p class="text-xs text-gray-500 mt-1">QR akan digenerate otomatis setelah meja disimpan.</p>
             </div>
             <button
                 type="submit"
@@ -711,9 +745,15 @@ function showAddTableForm() {
 async function submitAddTable(event) {
     event.preventDefault();
 
+    const tableNumber = parseInt(document.getElementById('table-number').value);
+
+    if (isNaN(tableNumber) || tableNumber < 1) {
+        showErrorAlert('Nomor meja tidak valid');
+        return;
+    }
+
     const data = {
-        tableNumber: parseInt(document.getElementById('table-number').value),
-        qrCode: document.getElementById('table-qrcode').value.trim(),
+        tableNumber,
         isActive: document.getElementById('table-active').checked
     };
 
@@ -722,7 +762,7 @@ async function submitAddTable(event) {
             'x-api-key': adminApiKey
         });
 
-        showSuccess('Meja berhasil ditambahkan');
+        showSuccess('Meja berhasil ditambahkan. QR otomatis dibuat.');
         closeModal();
         await loadTables();
 
@@ -732,16 +772,122 @@ async function submitAddTable(event) {
 }
 
 /**
+ * Function untuk show form edit table
+ */
+function showEditTableForm(tableId) {
+    const table = tables.find(t => t.id === tableId);
+    if (!table) {
+        showErrorAlert('Data meja tidak ditemukan');
+        return;
+    }
+
+    document.getElementById('modal-title').textContent = `Edit Meja ${table.tableNumber}`;
+
+    document.getElementById('modal-body').innerHTML = `
+        <form onsubmit="submitEditTable(event, '${table.id}')" class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-2">Nomor Meja</label>
+                <input
+                    type="number"
+                    id="edit-table-number"
+                    value="${table.tableNumber}"
+                    required
+                    min="1"
+                    class="w-full border border-gray-300 rounded-lg px-4 py-2"
+                >
+            </div>
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="edit-table-active" ${table.isActive ? 'checked' : ''} class="mr-2">
+                    <span class="text-gray-700">Meja aktif</span>
+                </label>
+            </div>
+            <div class="bg-gray-50 rounded-lg p-3">
+                <label class="flex items-center mb-2">
+                    <input type="checkbox" id="edit-regenerate-qr" class="mr-2">
+                    <span class="text-gray-700 text-sm">Buat QR baru sekarang</span>
+                </label>
+                <p class="text-xs text-gray-500">QR akan digenerate ulang jika nomor meja diganti.</p>
+                ${table.qrCode
+                    ? `
+                        <div class="text-center mt-3">
+                            <p class="text-xs text-gray-500 mb-2">Preview QR</p>
+                            <img src="${table.qrCode}" alt="QR Meja ${table.tableNumber}" class="mx-auto h-36 w-36 object-contain" />
+                            <a href="${table.qrCode}" download="meja-${table.tableNumber}.png" class="text-indigo-600 font-semibold text-xs inline-block mt-2">
+                                Download QR
+                            </a>
+                        </div>
+                    `
+                    : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
+                }
+            </div>
+            <button
+                type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg"
+            >
+                Simpan Perubahan
+            </button>
+        </form>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+/**
+ * Function untuk submit edit table form
+ */
+async function submitEditTable(event, tableId) {
+    event.preventDefault();
+
+    const tableNumber = parseInt(document.getElementById('edit-table-number').value);
+
+    if (isNaN(tableNumber) || tableNumber < 1) {
+        showErrorAlert('Nomor meja tidak valid');
+        return;
+    }
+
+    const data = {
+        tableNumber,
+        isActive: document.getElementById('edit-table-active').checked,
+        regenerateQr: document.getElementById('edit-regenerate-qr').checked
+    };
+
+    try {
+        await apiPatch(`/tables/${tableId}`, data, {
+            'x-api-key': adminApiKey
+        });
+
+        showSuccess('Meja berhasil diperbarui');
+        closeModal();
+        await loadTables();
+
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal mengupdate meja');
+    }
+}
+
+/**
+ * Function untuk menampilkan modal konfirmasi delete meja (modern)
+ */
+function confirmDeleteTable(tableId, tableNumber) {
+    openConfirmModal({
+        title: 'Hapus Meja',
+        message: `Hapus Meja ${tableNumber}? Tindakan tidak bisa dibatalkan.`,
+        confirmText: 'Hapus',
+        onConfirm: () => deleteTable(tableId)
+    });
+}
+
+/**
  * Function untuk delete table
  */
 async function deleteTable(tableId) {
-    if (!confirm('Yakin ingin menghapus meja ini?')) return;
-
     try {
         await apiDelete(`/tables/${tableId}`, {
             'x-api-key': adminApiKey
         });
 
+        closeModal();
         showSuccess('Meja berhasil dihapus');
         await loadTables();
 
@@ -839,8 +985,181 @@ function renderDailyReport(data) {
 }
 
 // ========================================
+// REPORT EXPORT FUNCTIONS
+// ========================================
+
+/**
+ * Render input fields sesuai periode export
+ */
+function renderExportInputs() {
+    const period = document.getElementById('export-period')?.value || 'day';
+    const container = document.getElementById('export-inputs');
+    if (!container) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const yearNow = new Date().getFullYear();
+
+    if (period === 'day') {
+        container.innerHTML = `
+            <div class="col-span-2 md:col-span-1">
+                <label class="block text-gray-700 text-sm mb-1">Tanggal</label>
+                <input type="date" id="export-date" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            </div>
+        `;
+        return;
+    }
+
+    if (period === 'month') {
+        const monthDefault = today.slice(0, 7);
+        container.innerHTML = `
+            <div class="col-span-2 md:col-span-1">
+                <label class="block text-gray-700 text-sm mb-1">Bulan</label>
+                <input type="month" id="export-month" value="${monthDefault}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            </div>
+        `;
+        return;
+    }
+
+    if (period === 'year') {
+        container.innerHTML = `
+            <div class="col-span-2 md:col-span-1">
+                <label class="block text-gray-700 text-sm mb-1">Tahun</label>
+                <input type="number" id="export-year" value="${yearNow}" class="w-full border border-gray-300 rounded-lg px-3 py-2" min="2000" max="2100">
+            </div>
+        `;
+        return;
+    }
+
+    if (period === 'range') {
+        container.innerHTML = `
+            <div class="col-span-2 md:col-span-1">
+                <label class="block text-gray-700 text-sm mb-1">Start</label>
+                <input type="date" id="export-start" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            </div>
+            <div class="col-span-2 md:col-span-1">
+                <label class="block text-gray-700 text-sm mb-1">End</label>
+                <input type="date" id="export-end" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+            </div>
+        `;
+        return;
+    }
+
+    // all
+    container.innerHTML = `
+        <div class="col-span-2 text-sm text-gray-600">All time. Tidak perlu pilih tanggal.</div>
+    `;
+}
+
+/**
+ * Trigger export Excel untuk penjualan
+ */
+async function exportSales() {
+    const period = document.getElementById('export-period')?.value || 'day';
+    const params = new URLSearchParams({ period });
+
+    if (period === 'day') {
+        const date = document.getElementById('export-date')?.value;
+        if (!date) return showErrorAlert('Pilih tanggal untuk export perhari.');
+        params.set('date', date);
+    } else if (period === 'month') {
+        const month = document.getElementById('export-month')?.value;
+        if (!month) return showErrorAlert('Pilih bulan untuk export perbulan.');
+        params.set('month', month);
+    } else if (period === 'year') {
+        const year = document.getElementById('export-year')?.value;
+        if (!year) return showErrorAlert('Isi tahun untuk export pertahun.');
+        params.set('year', year);
+    } else if (period === 'range') {
+        const start = document.getElementById('export-start')?.value;
+        const end = document.getElementById('export-end')?.value;
+        if (!start || !end) return showErrorAlert('Lengkapi start dan end date untuk export range.');
+        params.set('start', start);
+        params.set('end', end);
+    }
+
+    try {
+        const url = `${API_CONFIG.BASE_URL}/reports/export?${params.toString()}`;
+        const response = await fetch(url, {
+            headers: {
+                'x-api-key': adminApiKey
+            }
+        });
+
+        if (!response.ok) {
+            let message = 'Gagal export laporan';
+            try {
+                const data = await response.json();
+                message = data.message || message;
+            } catch (_err) {
+                // ignore parse error
+            }
+            throw new Error(message);
+        }
+
+        const blob = await response.blob();
+        const downloadUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = `sales-${period}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(downloadUrl);
+
+        showSuccess('Berhasil download laporan.');
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal export laporan');
+    }
+}
+
+// ========================================
 // MODAL FUNCTIONS
 // ========================================
+
+/**
+ * Generic confirmation modal
+ * @param {{title: string, message: string, confirmText?: string, confirmClass?: string, onConfirm: Function}} params
+ */
+function openConfirmModal({ title, message, confirmText = 'Lanjut', confirmClass = 'bg-red-600 hover:bg-red-700', onConfirm }) {
+    confirmActionCallback = onConfirm;
+    document.getElementById('modal-title').textContent = title;
+    document.getElementById('modal-body').innerHTML = `
+        <div class="text-center space-y-4">
+            <div class="w-14 h-14 rounded-full bg-red-100 text-red-600 mx-auto flex items-center justify-center">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </div>
+            <p class="text-lg font-semibold text-gray-800">${message}</p>
+            <div class="grid grid-cols-2 gap-3 pt-2">
+                <button
+                    type="button"
+                    onclick="closeModal()"
+                    class="w-full border border-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-50"
+                >
+                    Batal
+                </button>
+                <button
+                    type="button"
+                    onclick="runConfirmAction()"
+                    class="w-full ${confirmClass} text-white font-semibold py-2 rounded-lg"
+                >
+                    ${confirmText}
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function runConfirmAction() {
+    if (typeof confirmActionCallback === 'function') {
+        const cb = confirmActionCallback;
+        confirmActionCallback = null;
+        cb();
+    }
+}
 
 /**
  * Function untuk close modal
@@ -850,4 +1169,5 @@ function closeModal(event) {
     if (!event || event.target.id === 'modal') {
         document.getElementById('modal').classList.add('hidden');
     }
+    confirmActionCallback = null;
 }

@@ -69,13 +69,15 @@ x-api-key: my-secret-admin-key-123
     {
       "id": "uuid",
       "tableNumber": 1,
-      "qrCode": "QR_TABLE_1",
+      "qrCode": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAA...",
       "isActive": true,
       "createdAt": "2025-12-13T10:00:00.000Z"
     }
   ]
 }
 ```
+
+`qrCode` berisi data URL PNG yang sudah digenerate otomatis dari nomor meja.
 
 ### POST /tables
 Buat meja baru (ADMIN)
@@ -89,10 +91,11 @@ x-api-key: my-secret-admin-key-123
 ```json
 {
   "tableNumber": 1,
-  "qrCode": "QR_TABLE_1",
   "isActive": true
 }
 ```
+
+QR code akan dibuat otomatis berdasarkan nomor meja dan disimpan di database.
 
 ### PATCH /tables/:id
 Update meja (ADMIN)
@@ -106,10 +109,12 @@ x-api-key: my-secret-admin-key-123
 ```json
 {
   "tableNumber": 2,
-  "qrCode": "QR_TABLE_2",
-  "isActive": false
+  "isActive": false,
+  "regenerateQr": true
 }
 ```
+
+QR akan otomatis digenerate ulang jika `tableNumber` berubah atau `regenerateQr` diset `true`.
 
 ### DELETE /tables/:id
 Hapus meja (ADMIN)
@@ -617,9 +622,11 @@ Headers:
 Body:
 {
   "tableNumber": 1,
-  "qrCode": "QR_TABLE_1"
+  "isActive": true
 }
 ```
+
+`qrCode` tidak perlu dikirim; backend otomatis membuat gambar QR dan menyimpannya.
 
 ### Test Create Order (Customer)
 ```

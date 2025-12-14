@@ -33,10 +33,10 @@ Sebelum test customer, kita perlu data dummy dulu. Buka **Admin Dashboard**:
 
 3. **Tab Tables - Buat Meja:**
    - Click "Tambah Meja"
-   - Nomor Meja: `1`
-   - QR Code: `1` (simpel saja, nanti di-scan)
+   - Isi Nomor Meja: `1`
    - Centang "Meja aktif"
-   - Click "Tambah"
+   - Click "Tambah" → QR langsung digenerate
+   - Di card meja, klik **Download QR** untuk print/simpan
 
    Ulangi untuk meja 2, 3, dst.
 
@@ -195,18 +195,20 @@ Sebelum test customer, kita perlu data dummy dulu. Buka **Admin Dashboard**:
 
 2. **Add Meja Baru:**
    - Click "Tambah Meja"
-   - Isi form:
-     - Nomor Meja: `10`
-     - QR Code: `10` (atau custom, contoh: `QR_TABLE_10`)
-     - Centang "Meja aktif"
-   - Click "Tambah"
+   - Isi form: Nomor Meja `10`, centang "Meja aktif"
+   - Click "Tambah" ? QR otomatis dibuat & bisa di-download di card
 
-3. **Delete Meja:**
+3. **Edit Meja:**
+   - Click "Edit" di card meja
+   - Ubah nomor atau status aktif
+   - Opsional: centang "Buat QR baru" untuk regenerasi manual (otomatis jika nomor diubah)
+
+4. **Delete Meja:**
    - Click "Hapus Meja" di card meja
    - Confirm
-   - ⚠️ Hati-hati, akan kehilangan history orders di meja tersebut
+   - ?? Hati-hati, akan kehilangan history orders di meja tersebut
 
-**✅ Meja bisa dikelola!**
+**? Meja bisa dikelola!**
 
 ---
 
@@ -332,12 +334,11 @@ await apiPost(`/orders/${orderId}/cancel`);
 
 ## 📱 TEST QR SCANNER (Real Camera)
 
-### **Cara 1: Generate QR Code**
+### **Cara 1: Ambil QR Code dari Admin**
 
-1. Buka: https://www.qr-code-generator.com/
-2. Input text: `1` (untuk table number 1)
-3. Download QR code image
-4. Print atau tampilkan di screen lain
+1. Buka Admin Dashboard > Tab Tables.
+2. Pastikan meja sudah dibuat, lalu klik **Download QR** pada card meja (contoh: Meja 1).
+3. Print atau tampilkan QR tersebut di screen lain.
 
 ### **Cara 2: Scan dengan HP**
 

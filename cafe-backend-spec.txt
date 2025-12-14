@@ -1,0 +1,151 @@
+
+SPEC REQ – Cafe QR Ordering Backend (Node.js + Prisma + Supabase)
+
+TUJUAN
+Backend sederhana untuk sistem cafe:
+- Scan QR meja
+- Lihat menu
+- Order makanan/minuman
+- Pembayaran cash / QRIS
+- Admin CRUD + laporan harian
+
+==================================================
+LANGKAH CEPAT (TINGGAL JALAN)
+==================================================
+
+1. Buat folder project
+mkdir cafe-backend
+cd cafe-backend
+
+2. Copy–paste file sesuai struktur folder (lihat struktur di bawah)
+
+3. Setup environment variable
+cp .env.example .env
+
+Isi .env:
+PORT=3000
+DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
+ADMIN_API_KEY="change-me"
+
+DATABASE_URL diambil dari:
+Supabase → Project Settings → Database → Connection string (URI)
+
+4. Install dependency
+npm install
+
+5. Setup database (Prisma)
+npx prisma generate
+npx prisma db push
+
+Opsional:
+npx prisma studio
+
+6. Jalankan server
+npm run dev
+
+Server jalan di:
+http://localhost:3000
+
+==================================================
+STRUKTUR FOLDER
+==================================================
+
+cafe-backend/
+├─ package.json
+├─ tsconfig.json
+├─ .env.example
+├─ prisma/
+│  └─ schema.prisma
+└─ src/
+   ├─ index.ts
+   ├─ app.ts
+   ├─ db.ts
+   ├─ utils/
+   │  ├─ env.ts
+   │  └─ errors.ts
+   ├─ middleware/
+   │  └─ adminAuth.ts
+   ├─ routes/
+   │  ├─ health.routes.ts
+   │  ├─ tables.routes.ts
+   │  ├─ menu.routes.ts
+   │  ├─ orders.routes.ts
+   │  └─ reports.routes.ts
+   └─ modules/
+      ├─ tables/
+      │  └─ tables.controller.ts
+      ├─ menu/
+      │  └─ menu.controller.ts
+      ├─ orders/
+      │  └─ orders.controller.ts
+      └─ reports/
+         └─ reports.controller.ts
+
+==================================================
+AUTHENTICATION
+==================================================
+
+Admin endpoint WAJIB header:
+x-api-key: ADMIN_API_KEY
+
+Public endpoint TIDAK perlu auth (customer via QR).
+
+==================================================
+ENDPOINT RINGKAS
+==================================================
+
+HEALTH
+GET /health
+
+TABLES (QR Meja)
+Public:
+GET /tables/by-number/:tableNumber
+
+Admin:
+GET    /tables
+POST   /tables
+PATCH  /tables/:id
+DELETE /tables/:id
+
+MENU
+Public:
+GET /menu/categories
+GET /menu/items
+
+Admin:
+POST   /menu/categories
+POST   /menu/items
+PATCH  /menu/items/:id
+DELETE /menu/items/:id
+
+ORDERS
+Customer:
+POST /orders
+GET  /orders/:id
+POST /orders/:id/pay
+
+Admin:
+GET /orders
+
+REPORTS (Admin)
+GET /reports/daily?date=YYYY-MM-DD
+
+==================================================
+CATATAN DESAIN
+==================================================
+
+- Stock dikurangi saat pembayaran (bukan saat order)
+- Pembayaran menggunakan Prisma transaction
+- Cocok untuk MVP, cafe kecil, dan belajar backend
+
+==================================================
+NEXT UPGRADE (OPSIONAL)
+==================================================
+
+- JWT auth (admin / kasir)
+- WebSocket status order
+- Frontend React / Flutter
+- Auto-generate QR meja
+- Dashboard laporan bulanan
+
+END OF SPEC
