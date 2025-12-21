@@ -6,7 +6,7 @@
 // GLOBAL VARIABLES
 // ========================================
 
-// Variable untuk menyimpan instance QR scanner
+// Variable untuk menyimpan instance QR scanner (Html5Qrcode)
 let html5QrCodeScanner = null;
 
 // Variable untuk menyimpan data table yang sedang dipilih
@@ -36,16 +36,22 @@ let selectedCategory = null;
 window.onload = async function() {
     console.log('🚀 Customer page loaded');
 
-    // Check apakah ada table yang tersimpan di sessionStorage
-    // sessionStorage = tempat simpan data sementara di browser (hilang ketika close tab)
-    const savedTable = sessionStorage.getItem('currentTable');
-    if (savedTable) {
-        // Jika ada, parse JSON string jadi object
-        currentTable = JSON.parse(savedTable);
-        // Tampilkan table info dan load menu
-        showTableInfo();
-        await loadCategories();
-        await loadMenuItems();
+    // Auto-load table from URL: /customer?table=5
+    const tableFromUrl = getTableNumberFromUrl();
+    if (tableFromUrl) {
+        await fetchTableByNumber(tableFromUrl);
+    } else {
+        // Check apakah ada table yang tersimpan di sessionStorage
+        // sessionStorage = tempat simpan data sementara di browser (hilang ketika close tab)
+        const savedTable = sessionStorage.getItem('currentTable');
+        if (savedTable) {
+            // Jika ada, parse JSON string jadi object
+            currentTable = JSON.parse(savedTable);
+            // Tampilkan table info dan load menu
+            showTableInfo();
+            await loadCategories();
+            await loadMenuItems();
+        }
     }
 
     // Check apakah ada cart yang tersimpan di localStorage
@@ -62,48 +68,90 @@ window.onload = async function() {
 // ========================================
 
 /**
+ * Request camera permission once on user gesture.
+ */
+async function requestCameraPermission() {
+    const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' }
+    });
+
+    // Stop tracks immediately; scanner will open the stream again.
+    stream.getTracks().forEach(track => track.stop());
+}
+
+/**
  * Function untuk start QR scanner
  * Menggunakan library html5-qrcode
  */
-function startQrScanner() {
+async function startQrScanner() {
+    if (!window.isSecureContext && location.hostname !== 'localhost') {
+        showErrorAlert('Akses kamera butuh HTTPS atau localhost.');
+        return;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showErrorAlert('Browser tidak mendukung akses kamera.');
+        return;
+    }
+
+    if (html5QrCodeScanner) {
+        return;
+    }
+
+    try {
+        await requestCameraPermission();
+    } catch (error) {
+        console.error('Camera permission denied:', error);
+        showErrorAlert('Izin kamera ditolak atau belum diberikan.');
+        return;
+    }
+
     console.log('📷 Starting QR scanner...');
 
-    // Ambil element qr-reader dari HTML
-    const qrReaderElement = document.getElementById('qr-reader');
+    html5QrCodeScanner = new Html5Qrcode("qr-reader");
 
-    // Inisialisasi Html5QrcodeScanner dengan config
-    html5QrCodeScanner = new Html5QrcodeScanner(
-        "qr-reader", // ID element untuk render scanner
-        {
-            fps: 10,                    // Frame per second (semakin tinggi semakin smooth)
-            qrbox: { width: 250, height: 250 }, // Ukuran kotak scan
-            aspectRatio: 1.0,           // Ratio camera
-            showTorchButtonIfSupported: true // Tampilkan button flash jika device support
-        },
-        false // verbose mode (false = tidak banyak log di console)
-    );
+    try {
+        await html5QrCodeScanner.start(
+            { facingMode: "environment" },
+            {
+                fps: 10,
+                qrbox: { width: 250, height: 250 },
+                aspectRatio: 1.0
+            },
+            onScanSuccess,
+            onScanError
+        );
 
-    // Render scanner dan set callback function untuk success & error
-    html5QrCodeScanner.render(
-        onScanSuccess,  // Function yang dipanggil ketika berhasil scan
-        onScanError     // Function yang dipanggil ketika error scan
-    );
-
-    // Toggle visibility button start/stop
-    document.getElementById('start-scan-btn').classList.add('hidden');
-    document.getElementById('stop-scan-btn').classList.remove('hidden');
+        // Toggle visibility button start/stop
+        document.getElementById('start-scan-btn').classList.add('hidden');
+        document.getElementById('stop-scan-btn').classList.remove('hidden');
+    } catch (error) {
+        console.error('Failed to start scanner:', error);
+        showErrorAlert('Gagal mengaktifkan kamera. Coba ulang atau cek izin.');
+        try {
+            await html5QrCodeScanner.clear();
+        } catch (_err) {
+            // ignore cleanup error
+        }
+        html5QrCodeScanner = null;
+    }
 }
 
 /**
  * Function untuk stop QR scanner
  */
-function stopQrScanner() {
+async function stopQrScanner() {
     console.log('🛑 Stopping QR scanner...');
 
     if (html5QrCodeScanner) {
-        // Stop scanner dan clear element
-        html5QrCodeScanner.clear();
+        const instance = html5QrCodeScanner;
         html5QrCodeScanner = null;
+        try {
+            await instance.stop();
+            await instance.clear();
+        } catch (error) {
+            console.error('Failed to stop scanner:', error);
+        }
     }
 
     // Toggle visibility button
@@ -161,6 +209,30 @@ function extractTableNumber(decodedText) {
     }
 
     return NaN;
+}
+
+/**
+ * Get table number from URL query (?table=).
+ * Removes the param to avoid reload loop on error.
+ */
+function getTableNumberFromUrl() {
+    try {
+        const url = new URL(window.location.href);
+        const tableParam = url.searchParams.get('table');
+        if (!tableParam) return null;
+
+        const tableNumber = parseInt(tableParam, 10);
+        url.searchParams.delete('table');
+        window.history.replaceState({}, document.title, url.toString());
+
+        if (!isNaN(tableNumber) && tableNumber > 0) {
+            return tableNumber;
+        }
+    } catch (error) {
+        console.error('Failed to read table param:', error);
+    }
+
+    return null;
 }
 
 /**

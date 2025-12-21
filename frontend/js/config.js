@@ -5,8 +5,10 @@
 // oleh frontend untuk berkomunikasi dengan server
 
 // URL dasar API backend
-// Jika backend di localhost port 3000, gunakan ini:
-const API_BASE_URL = 'http://localhost:3000';
+// Default: gunakan origin yang sama (cocok untuk ngrok/HTTPS dan serve dari backend)
+const API_BASE_URL = window.location.origin === 'null'
+    ? 'http://localhost:3000'
+    : window.location.origin;
 
 // Jika deploy ke production, ganti dengan URL production:
 // const API_BASE_URL = 'https://api-anda.com';

@@ -36,17 +36,10 @@ window.onload = function() {
         showDashboard();
     }
 
-    // Set default date untuk report (hari ini)
-    const today = new Date().toISOString().split('T')[0];
-    const dateInput = document.getElementById('report-date');
-    if (dateInput) {
-        dateInput.value = today;
-    }
-
-    const periodSelect = document.getElementById('export-period');
+    const periodSelect = document.getElementById('report-period');
     if (periodSelect) {
-        renderExportInputs();
-        periodSelect.addEventListener('change', renderExportInputs);
+        renderReportInputs();
+        periodSelect.addEventListener('change', renderReportInputs);
     }
 };
 
@@ -901,26 +894,23 @@ async function deleteTable(tableId) {
 // ========================================
 
 /**
- * Function untuk load daily report berdasarkan tanggal yang dipilih
+ * Function untuk load report berdasarkan periode yang dipilih
  */
-async function loadDailyReport() {
+async function loadReport() {
     try {
         showLoading('report-content');
 
-        const date = document.getElementById('report-date').value;
+        const { endpoint } = buildReportRequest();
 
-        if (!date) {
-            showError('report-content', 'Pilih tanggal terlebih dahulu');
-            return;
-        }
-
-        // Hit API: GET /reports/daily?date=YYYY-MM-DD
-        const response = await apiGet(`/reports/daily?date=${date}`, {
+        const response = await apiGet(endpoint, {
             'x-api-key': adminApiKey
         });
 
-        // Render report
-        renderDailyReport(response.data);
+        if (endpoint.startsWith('/reports/daily')) {
+            renderDailyReport(response.data);
+        } else {
+            renderSummaryReport(response.data);
+        }
 
     } catch (error) {
         console.error('Error loading report:', error);
@@ -984,16 +974,82 @@ function renderDailyReport(data) {
     `;
 }
 
+/**
+ * Function untuk render summary report (range/month/year/all)
+ */
+function renderSummaryReport(data) {
+    const container = document.getElementById('report-content');
+
+    container.innerHTML = `
+        <!-- Summary Cards -->
+        <div class="grid md:grid-cols-3 gap-4 mb-6">
+            <div class="bg-blue-50 rounded-lg p-4">
+                <p class="text-sm text-blue-600 font-semibold mb-1">Total Orders</p>
+                <p class="text-3xl font-bold text-blue-900">${data.summary.totalOrders}</p>
+            </div>
+            <div class="bg-green-50 rounded-lg p-4">
+                <p class="text-sm text-green-600 font-semibold mb-1">Total Revenue</p>
+                <p class="text-3xl font-bold text-green-900">${formatRupiah(data.summary.totalRevenue)}</p>
+            </div>
+            <div class="bg-purple-50 rounded-lg p-4">
+                <p class="text-sm text-purple-600 font-semibold mb-1">Avg Order Value</p>
+                <p class="text-3xl font-bold text-purple-900">${formatRupiah(data.summary.averageOrderValue)}</p>
+            </div>
+        </div>
+
+        <!-- Revenue by Payment Method -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <h4 class="font-bold text-gray-800 mb-3">Revenue by Payment Method</h4>
+            ${Object.entries(data.revenueByMethod).map(([method, info]) => `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-gray-700">${method.toUpperCase()}</span>
+                    <span class="font-semibold text-gray-900">${formatRupiah(info.revenue)} (${info.count} orders)</span>
+                </div>
+            `).join('') || '<p class="text-gray-500 text-sm">No data</p>'}
+        </div>
+
+        <!-- Revenue by Category -->
+        <div class="bg-gray-50 rounded-lg p-4 mb-6">
+            <h4 class="font-bold text-gray-800 mb-3">Revenue by Category</h4>
+            ${Object.entries(data.revenueByCategory || {}).map(([category, info]) => `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-gray-700">${category}</span>
+                    <span class="font-semibold text-gray-900">${formatRupiah(info.revenue)} (${info.itemsSold} items)</span>
+                </div>
+            `).join('') || '<p class="text-gray-500 text-sm">No data</p>'}
+        </div>
+
+        <!-- Inventory Snapshot -->
+        <div class="bg-gray-50 rounded-lg p-4">
+            <h4 class="font-bold text-gray-800 mb-3">Inventory Snapshot</h4>
+            <div class="grid md:grid-cols-3 gap-3">
+                <div class="bg-white rounded-lg p-3 border">
+                    <p class="text-xs text-gray-500 mb-1">Menu Items</p>
+                    <p class="text-lg font-semibold text-gray-900">${data.inventory.totalMenuItems}</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border">
+                    <p class="text-xs text-gray-500 mb-1">Categories</p>
+                    <p class="text-lg font-semibold text-gray-900">${data.inventory.totalCategories}</p>
+                </div>
+                <div class="bg-white rounded-lg p-3 border">
+                    <p class="text-xs text-gray-500 mb-1">Tables</p>
+                    <p class="text-lg font-semibold text-gray-900">${data.inventory.totalTables}</p>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
 // ========================================
 // REPORT EXPORT FUNCTIONS
 // ========================================
 
 /**
- * Render input fields sesuai periode export
+ * Render input fields sesuai periode laporan
  */
-function renderExportInputs() {
-    const period = document.getElementById('export-period')?.value || 'day';
-    const container = document.getElementById('export-inputs');
+function renderReportInputs() {
+    const period = document.getElementById('report-period')?.value || 'day';
+    const container = document.getElementById('report-inputs');
     if (!container) return;
 
     const today = new Date().toISOString().split('T')[0];
@@ -1003,7 +1059,7 @@ function renderExportInputs() {
         container.innerHTML = `
             <div class="col-span-2 md:col-span-1">
                 <label class="block text-gray-700 text-sm mb-1">Tanggal</label>
-                <input type="date" id="export-date" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                <input type="date" id="report-date" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
             </div>
         `;
         return;
@@ -1014,7 +1070,7 @@ function renderExportInputs() {
         container.innerHTML = `
             <div class="col-span-2 md:col-span-1">
                 <label class="block text-gray-700 text-sm mb-1">Bulan</label>
-                <input type="month" id="export-month" value="${monthDefault}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                <input type="month" id="report-month" value="${monthDefault}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
             </div>
         `;
         return;
@@ -1024,7 +1080,7 @@ function renderExportInputs() {
         container.innerHTML = `
             <div class="col-span-2 md:col-span-1">
                 <label class="block text-gray-700 text-sm mb-1">Tahun</label>
-                <input type="number" id="export-year" value="${yearNow}" class="w-full border border-gray-300 rounded-lg px-3 py-2" min="2000" max="2100">
+                <input type="number" id="report-year" value="${yearNow}" class="w-full border border-gray-300 rounded-lg px-3 py-2" min="2000" max="2100">
             </div>
         `;
         return;
@@ -1034,11 +1090,11 @@ function renderExportInputs() {
         container.innerHTML = `
             <div class="col-span-2 md:col-span-1">
                 <label class="block text-gray-700 text-sm mb-1">Start</label>
-                <input type="date" id="export-start" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                <input type="date" id="report-start" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
             </div>
             <div class="col-span-2 md:col-span-1">
                 <label class="block text-gray-700 text-sm mb-1">End</label>
-                <input type="date" id="export-end" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
+                <input type="date" id="report-end" value="${today}" class="w-full border border-gray-300 rounded-lg px-3 py-2">
             </div>
         `;
         return;
@@ -1050,28 +1106,76 @@ function renderExportInputs() {
     `;
 }
 
-/**
- * Trigger export Excel untuk penjualan
- */
-async function exportSales() {
-    const period = document.getElementById('export-period')?.value || 'day';
-    const params = new URLSearchParams({ period });
+function formatDateValue(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
+function buildReportRequest() {
+    const period = document.getElementById('report-period')?.value || 'day';
+    const today = new Date();
 
     if (period === 'day') {
-        const date = document.getElementById('export-date')?.value;
+        const date = document.getElementById('report-date')?.value;
+        if (!date) throw new Error('Pilih tanggal terlebih dahulu');
+        return { endpoint: `/reports/daily?date=${date}`, period };
+    }
+
+    if (period === 'month') {
+        const month = document.getElementById('report-month')?.value;
+        if (!month) throw new Error('Pilih bulan terlebih dahulu');
+        const [year, monthNum] = month.split('-').map(Number);
+        const lastDay = new Date(year, monthNum, 0).getDate();
+        const startDate = `${month}-01`;
+        const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
+        return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period };
+    }
+
+    if (period === 'year') {
+        const year = document.getElementById('report-year')?.value;
+        if (!year) throw new Error('Isi tahun terlebih dahulu');
+        const startDate = `${year}-01-01`;
+        const endDate = `${year}-12-31`;
+        return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period };
+    }
+
+    if (period === 'range') {
+        const start = document.getElementById('report-start')?.value;
+        const end = document.getElementById('report-end')?.value;
+        if (!start || !end) throw new Error('Lengkapi start dan end date');
+        return { endpoint: `/reports/summary?start_date=${start}&end_date=${end}`, period };
+    }
+
+    const startDate = '1970-01-01';
+    const endDate = formatDateValue(today);
+    return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period: 'all' };
+}
+
+/**
+ * Trigger export file untuk penjualan
+ */
+async function exportSales() {
+    const period = document.getElementById('report-period')?.value || 'day';
+    const format = document.getElementById('report-format')?.value || 'csv';
+    const params = new URLSearchParams({ period, format });
+
+    if (period === 'day') {
+        const date = document.getElementById('report-date')?.value;
         if (!date) return showErrorAlert('Pilih tanggal untuk export perhari.');
         params.set('date', date);
     } else if (period === 'month') {
-        const month = document.getElementById('export-month')?.value;
+        const month = document.getElementById('report-month')?.value;
         if (!month) return showErrorAlert('Pilih bulan untuk export perbulan.');
         params.set('month', month);
     } else if (period === 'year') {
-        const year = document.getElementById('export-year')?.value;
+        const year = document.getElementById('report-year')?.value;
         if (!year) return showErrorAlert('Isi tahun untuk export pertahun.');
         params.set('year', year);
     } else if (period === 'range') {
-        const start = document.getElementById('export-start')?.value;
-        const end = document.getElementById('export-end')?.value;
+        const start = document.getElementById('report-start')?.value;
+        const end = document.getElementById('report-end')?.value;
         if (!start || !end) return showErrorAlert('Lengkapi start dan end date untuk export range.');
         params.set('start', start);
         params.set('end', end);
@@ -1100,7 +1204,7 @@ async function exportSales() {
         const downloadUrl = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = downloadUrl;
-        a.download = `sales-${period}.xlsx`;
+        a.download = `sales-${period}.${format === 'xlsx' ? 'xlsx' : 'csv'}`;
         document.body.appendChild(a);
         a.click();
         a.remove();
