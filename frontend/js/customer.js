@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // CUSTOMER.JS - Logic untuk halaman customer
 // ============================================
 
@@ -34,7 +34,7 @@ let selectedCategory = null;
  * Ini adalah entry point dari semua logic customer
  */
 window.onload = async function() {
-    console.log('🚀 Customer page loaded');
+    console.log('ðŸš€ Customer page loaded');
 
     // Auto-load table from URL: /customer?table=5
     const tableFromUrl = getTableNumberFromUrl();
@@ -106,7 +106,7 @@ async function startQrScanner() {
         return;
     }
 
-    console.log('📷 Starting QR scanner...');
+    console.log('ðŸ“· Starting QR scanner...');
 
     html5QrCodeScanner = new Html5Qrcode("qr-reader");
 
@@ -141,7 +141,7 @@ async function startQrScanner() {
  * Function untuk stop QR scanner
  */
 async function stopQrScanner() {
-    console.log('🛑 Stopping QR scanner...');
+    console.log('ðŸ›‘ Stopping QR scanner...');
 
     if (html5QrCodeScanner) {
         const instance = html5QrCodeScanner;
@@ -165,7 +165,7 @@ async function stopQrScanner() {
  * @param {object} decodedResult - Object result dari scanner (berisi format, dll)
  */
 async function onScanSuccess(decodedText, decodedResult) {
-    console.log('✅ QR Code detected:', decodedText);
+    console.log('âœ… QR Code detected:', decodedText);
 
     // Stop scanner
     stopQrScanner();
@@ -339,7 +339,7 @@ function changeTable() {
  */
 async function loadCategories() {
     try {
-        console.log('📂 Loading categories...');
+        console.log('ðŸ“‚ Loading categories...');
 
         // Hit API endpoint: GET /menu/categories
         const response = await apiGet('/menu/categories');
@@ -411,7 +411,7 @@ function filterByCategory(categoryId) {
  */
 async function loadMenuItems() {
     try {
-        console.log('🍽️ Loading menu items...');
+        console.log('ðŸ½ï¸ Loading menu items...');
 
         // Hit API endpoint: GET /menu/items?only_available=true
         // Query param only_available=true untuk show hanya yang available
@@ -462,12 +462,18 @@ function renderMenuItems() {
         const card = document.createElement('div');
         card.className = 'bg-white rounded-lg shadow-md overflow-hidden hover:shadow-xl transition-shadow';
 
+        const imageHtml = item.imageUrl
+            ? `<img src="${item.imageUrl}" alt="${item.name}" class="h-48 w-full object-cover">`
+            : `
+                <div class="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
+                    <span class="text-6xl">dY???,?</span>
+                </div>
+            `;
+
         // Set innerHTML (isi card)
         card.innerHTML = `
             <!-- Image placeholder (bisa diganti dengan real image) -->
-            <div class="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                <span class="text-6xl">🍽️</span>
-            </div>
+            ${imageHtml}
 
             <!-- Card Body -->
             <div class="p-4">
@@ -654,7 +660,7 @@ function renderCartItems() {
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1">
                     <h4 class="font-semibold text-gray-800">${item.name}</h4>
-                    <p class="text-sm text-gray-600">${formatRupiah(item.price)} × ${item.quantity}</p>
+                    <p class="text-sm text-gray-600">${formatRupiah(item.price)} Ã— ${item.quantity}</p>
                 </div>
                 <!-- Remove button -->
                 <button
@@ -821,23 +827,16 @@ async function confirmOrder() {
             items: cart.map(item => ({
                 menuItemId: item.id,
                 quantity: item.quantity
-            }))
+            })),
+            paymentMethod: paymentMethod
         };
 
-        console.log('🛒 Creating order:', orderData);
+        console.log('ðŸ›’ Creating order:', orderData);
 
         // Hit API: POST /orders
         const orderResponse = await apiPost('/orders', orderData);
 
-        console.log('✅ Order created:', orderResponse);
-
-        // Setelah order dibuat, langsung bayar
-        // Hit API: POST /orders/:id/pay
-        const payResponse = await apiPost(`/orders/${orderResponse.data.id}/pay`, {
-            method: paymentMethod
-        });
-
-        console.log('✅ Payment processed:', payResponse);
+        console.log('âœ… Order created:', orderResponse);
 
         // Clear cart
         cart = [];
@@ -880,15 +879,15 @@ function showSuccessModal(orderId, paymentMethod) {
     if (paymentMethod === 'cash') {
         instructionsDiv.innerHTML = `
             <div class="bg-blue-50 p-4 rounded-lg">
-                <p class="font-semibold text-blue-800 mb-2">💵 Pembayaran Cash</p>
-                <p class="text-sm text-blue-700">Silakan bayar di kasir saat pesanan Anda datang.</p>
+                <p class="font-semibold text-blue-800 mb-2">Pembayaran Cash</p>
+                <p class="text-sm text-blue-700">Pesanan menunggu validasi kasir. Silakan konfirmasi pembayaran di kasir.</p>
             </div>
         `;
     } else {
         instructionsDiv.innerHTML = `
             <div class="bg-blue-50 p-4 rounded-lg">
-                <p class="font-semibold text-blue-800 mb-2">📱 Pembayaran QRIS</p>
-                <p class="text-sm text-blue-700">Silakan scan QRIS code di meja atau kasir untuk melakukan pembayaran.</p>
+                <p class="font-semibold text-blue-800 mb-2">Pembayaran QRIS</p>
+                <p class="text-sm text-blue-700">Pesanan menunggu validasi kasir. Silakan konfirmasi pembayaran QRIS di kasir.</p>
             </div>
         `;
     }
@@ -906,3 +905,4 @@ function closeSuccessModal() {
     // Optional: Reload page untuk fresh start
     // location.reload();
 }
+

@@ -149,6 +149,7 @@ List menu items (PUBLIC)
 **Query Parameters:**
 - `category_id` (optional): Filter by category ID
 - `only_available` (optional, default: true): Show only available items
+- `include_archived` (optional, default: false): Include archived items
 
 **Response:**
 ```json
@@ -162,6 +163,8 @@ List menu items (PUBLIC)
       "price": 15000,
       "stock": 100,
       "isAvailable": true,
+      "isArchived": false,
+      "imageUrl": "https://example.supabase.co/storage/v1/object/public/menu-images/menu/abc.webp",
       "createdAt": "2025-12-13T10:00:00.000Z",
       "category": {
         "id": "uuid",
@@ -221,7 +224,8 @@ x-api-key: my-secret-admin-key-123
   "name": "Kopi Susu",
   "price": 15000,
   "stock": 100,
-  "isAvailable": true
+  "isAvailable": true,
+  "imageUrl": "https://example.supabase.co/storage/v1/object/public/menu-images/menu/abc.webp"
 }
 ```
 
@@ -245,7 +249,7 @@ x-api-key: my-secret-admin-key-123
 
 ### DELETE /menu/items/:id
 Hapus menu item (ADMIN)
-- Item tidak bisa dihapus jika ada pending orders
+- Item akan diarsipkan (soft delete) dan tidak tampil di menu
 
 ---
 
@@ -281,6 +285,8 @@ Buat order baru (PUBLIC - Customer via QR)
     "status": "pending",
     "totalPrice": 50000,
     "paymentMethod": null,
+    "validatedAt": null,
+    "servedAt": null,
     "createdAt": "2025-12-13T10:00:00.000Z",
     "table": {...},
     "items": [
@@ -288,6 +294,7 @@ Buat order baru (PUBLIC - Customer via QR)
         "id": "uuid",
         "orderId": "uuid",
         "menuItemId": "uuid",
+        "menuName": "Kopi Susu",
         "quantity": 2,
         "price": 15000,
         "menuItem": {...}
@@ -310,6 +317,8 @@ Get order detail (PUBLIC)
     "status": "pending",
     "totalPrice": 50000,
     "paymentMethod": null,
+    "validatedAt": null,
+    "servedAt": null,
     "createdAt": "2025-12-13T10:00:00.000Z",
     "table": {...},
     "items": [...],
@@ -319,15 +328,19 @@ Get order detail (PUBLIC)
 ```
 
 ### GET /orders
-List semua orders (ADMIN)
+List semua orders (ADMIN/KITCHEN)
 
 **Headers:**
 ```
 x-api-key: my-secret-admin-key-123
 ```
+atau
+```
+x-api-key: my-secret-kitchen-key-123
+```
 
 **Query Parameters:**
-- `status` (optional): Filter by status (pending, paid, cancelled)
+- `status` (optional): Filter by status (pending, validated, paid, served, cancelled)
 - `table_id` (optional): Filter by table ID
 
 **Response:**
@@ -341,6 +354,8 @@ x-api-key: my-secret-admin-key-123
       "status": "paid",
       "totalPrice": 50000,
       "paymentMethod": "qris",
+      "validatedAt": "2025-12-13T10:00:00.000Z",
+      "servedAt": null,
       "createdAt": "2025-12-13T10:00:00.000Z",
       "table": {...},
       "_count": {
@@ -352,9 +367,9 @@ x-api-key: my-secret-admin-key-123
 ```
 
 ### POST /orders/:id/pay
-Bayar order (PUBLIC)
+Bayar order (ADMIN)
+- Order harus status "validated"
 - Order status akan berubah menjadi "paid"
-- Stock menu items akan berkurang
 - Payment record akan dibuat
 
 **Body:**
@@ -393,8 +408,19 @@ atau
 ```
 
 ### POST /orders/:id/cancel
-Cancel order (PUBLIC)
-- Hanya bisa cancel order dengan status "pending"
+Cancel order
+- Pending: bisa dibatalkan tanpa admin key
+- Validated: butuh header admin key dan stok akan dikembalikan
+
+### POST /orders/:id/serve
+Tandai order sudah disajikan (ADMIN/KITCHEN)
+- Hanya untuk order dengan status "validated" atau "paid"
+- Status akan berubah menjadi "served"
+
+### POST /orders/:id/unserve
+Batalkan status sajikan (ADMIN/KITCHEN)
+- Hanya untuk order dengan status "served"
+- Status akan kembali ke "paid" jika sudah ada payment, atau "validated" jika belum
 
 **Response:**
 ```json
@@ -422,6 +448,7 @@ x-api-key: my-secret-admin-key-123
 
 **Query Parameters:**
 - `date` (required): Format YYYY-MM-DD (contoh: 2025-12-13)
+- `orders_limit` (optional, default: 50): Jumlah detail order yang dikembalikan
 
 **Response:**
 ```json
@@ -442,6 +469,18 @@ x-api-key: my-secret-admin-key-123
       "1": { "revenue": 100000, "orders": 3 },
       "2": { "revenue": 150000, "orders": 5 }
     },
+    "orders": [
+      {
+        "id": "uuid",
+        "tableNumber": 1,
+        "paymentMethod": "qris",
+        "totalPrice": 50000,
+        "paidAt": "2025-12-13T10:30:00.000Z",
+        "items": [
+          { "name": "Kopi Susu", "quantity": 2, "price": 15000 }
+        ]
+      }
+    ],
     "topItems": [
       {
         "name": "Kopi Susu",
@@ -465,6 +504,7 @@ x-api-key: my-secret-admin-key-123
 **Query Parameters:**
 - `start_date` (optional): Format YYYY-MM-DD (default: 30 hari lalu)
 - `end_date` (optional): Format YYYY-MM-DD (default: hari ini)
+- `orders_limit` (optional, default: 50): Jumlah detail order yang dikembalikan
 
 **Response:**
 ```json
@@ -492,7 +532,19 @@ x-api-key: my-secret-admin-key-123
       "totalMenuItems": 45,
       "totalCategories": 8,
       "totalTables": 20
-    }
+    },
+    "orders": [
+      {
+        "id": "uuid",
+        "tableNumber": 1,
+        "paymentMethod": "qris",
+        "totalPrice": 50000,
+        "paidAt": "2025-12-13T10:30:00.000Z",
+        "items": [
+          { "name": "Kopi Susu", "quantity": 2, "price": 15000 }
+        ]
+      }
+    ]
   }
 }
 ```
@@ -562,6 +614,7 @@ Edit file `.env` dan isi dengan kredensial database Supabase Anda:
 PORT=3000
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
 ADMIN_API_KEY="my-secret-admin-key-123"
+KITCHEN_API_KEY="my-secret-kitchen-key-123"
 ```
 
 ### 3. Generate Prisma Client

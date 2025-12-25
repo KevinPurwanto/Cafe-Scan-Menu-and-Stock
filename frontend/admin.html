@@ -132,7 +132,9 @@
                         >
                             <option value="">Semua Status</option>
                             <option value="pending">Pending</option>
+                            <option value="validated">Validated</option>
                             <option value="paid">Paid</option>
+                            <option value="served">Served</option>
                             <option value="cancelled">Cancelled</option>
                         </select>
                     </div>
@@ -217,7 +219,7 @@
                     <!-- Report Controls -->
                     <div class="mb-6">
                         <h4 class="text-lg font-bold text-gray-800 mb-3">Filter Laporan</h4>
-                        <div class="grid md:grid-cols-4 gap-4">
+                        <div class="grid md:grid-cols-5 gap-4">
                             <div>
                                 <label class="block text-gray-700 font-semibold mb-2">Periode</label>
                                 <select id="report-period" class="w-full border border-gray-300 rounded-lg px-3 py-2">
@@ -233,6 +235,18 @@
                                 <select id="report-format" class="w-full border border-gray-300 rounded-lg px-3 py-2">
                                     <option value="csv" selected>CSV (.csv)</option>
                                     <option value="xlsx">Excel (.xlsx)</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-gray-700 font-semibold mb-2">Limit Orders</label>
+                                <select
+                                    id="report-orders-limit"
+                                    class="w-full border border-gray-300 rounded-lg px-3 py-2"
+                                    onchange="loadReport()"
+                                >
+                                    <option value="10">10</option>
+                                    <option value="50" selected>50</option>
+                                    <option value="100">100</option>
                                 </select>
                             </div>
                             <div id="report-inputs" class="md:col-span-2 grid grid-cols-2 gap-3">

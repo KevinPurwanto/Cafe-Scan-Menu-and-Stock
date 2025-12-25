@@ -38,6 +38,17 @@ function formatDateLocal(date: Date) {
   return `${year}-${month}-${day}`;
 }
 
+function getOrdersLimit(rawLimit: unknown) {
+  const parsed = Number(rawLimit);
+  if (!Number.isFinite(parsed) || parsed <= 0) return 50;
+  return Math.floor(parsed);
+}
+
+function sortAndLimitOrders<T extends { paidAt: Date }>(orders: T[], limit: number) {
+  const sorted = [...orders].sort((a, b) => b.paidAt.getTime() - a.paidAt.getTime());
+  return sorted.slice(0, limit);
+}
+
 function buildRange(period: PeriodType, query: Record<string, any>) {
   if (period === "all") {
     return { startDate: new Date(0), endDate: new Date(), label: "all-time" };
@@ -168,16 +179,18 @@ export async function dailyReport(req: Request, res: Response) {
   const itemSales = new Map<string, { name: string; quantity: number; revenue: number; category: string }>();
   for (const order of orders) {
     for (const item of order.items) {
-      const existing = itemSales.get(item.menuItemId);
+      const itemName = item.menuName ?? "unknown";
+      const itemKey = item.menuItemId ?? `name:${itemName}`;
+      const existing = itemSales.get(itemKey);
       if (existing) {
         existing.quantity += item.quantity;
         existing.revenue += item.price * item.quantity;
       } else {
-        itemSales.set(item.menuItemId, {
-          name: item.menuItem.name,
+        itemSales.set(itemKey, {
+          name: item.menuItem?.name ?? item.menuName ?? "Unknown",
           quantity: item.quantity,
           revenue: item.price * item.quantity,
-          category: item.menuItem.category?.name ?? "Uncategorized"
+          category: item.menuItem?.category?.name ?? "Uncategorized"
         });
       }
     }
@@ -186,6 +199,24 @@ export async function dailyReport(req: Request, res: Response) {
   const topItems = Array.from(itemSales.values())
     .sort((a, b) => b.quantity - a.quantity)
     .slice(0, 10);
+
+  const ordersDetail = orders.map(order => {
+    const paidAt = order.payments?.[0]?.paidAt ?? order.createdAt;
+    return {
+      id: order.id,
+      tableNumber: order.table?.tableNumber ?? null,
+      paymentMethod: order.paymentMethod ?? null,
+      totalPrice: order.totalPrice,
+      paidAt,
+      items: order.items.map(item => ({
+        name: item.menuItem?.name ?? item.menuName ?? "Unknown",
+        quantity: item.quantity,
+        price: item.price
+      }))
+    };
+  });
+  const ordersLimit = getOrdersLimit(req.query.orders_limit);
+  const limitedOrders = sortAndLimitOrders(ordersDetail, ordersLimit);
 
   res.json({
     success: true,
@@ -198,7 +229,8 @@ export async function dailyReport(req: Request, res: Response) {
       },
       revenueByMethod,
       revenueByTable,
-      topItems
+      topItems,
+      orders: limitedOrders
     }
   });
 }
@@ -248,7 +280,7 @@ export async function summaryReport(req: Request, res: Response) {
   const revenueByCategory = new Map<string, { revenue: number; itemsSold: number }>();
   for (const order of orders) {
     for (const item of order.items) {
-      const categoryName = item.menuItem.category?.name ?? "Uncategorized";
+      const categoryName = item.menuItem?.category?.name ?? "Uncategorized";
       const existing = revenueByCategory.get(categoryName);
       if (existing) {
         existing.revenue += item.price * item.quantity;
@@ -269,6 +301,24 @@ export async function summaryReport(req: Request, res: Response) {
     prisma.table.count()
   ]);
 
+  const ordersDetail = orders.map(order => {
+    const paidAt = order.payments?.[0]?.paidAt ?? order.createdAt;
+    return {
+      id: order.id,
+      tableNumber: order.table?.tableNumber ?? null,
+      paymentMethod: order.paymentMethod ?? null,
+      totalPrice: order.totalPrice,
+      paidAt,
+      items: order.items.map(item => ({
+        name: item.menuItem?.name ?? item.menuName ?? "Unknown",
+        quantity: item.quantity,
+        price: item.price
+      }))
+    };
+  });
+  const ordersLimit = getOrdersLimit(req.query.orders_limit);
+  const limitedOrders = sortAndLimitOrders(ordersDetail, ordersLimit);
+
   res.json({
     success: true,
     data: {
@@ -287,7 +337,8 @@ export async function summaryReport(req: Request, res: Response) {
         totalMenuItems,
         totalCategories,
         totalTables
-      }
+      },
+      orders: limitedOrders
     }
   });
 }
@@ -350,7 +401,7 @@ export async function exportSales(req: Request, res: Response) {
     orders.forEach((order, idx) => {
       const paidAt = order.payments?.[0]?.paidAt ?? order.createdAt;
       const itemsText = order.items
-        .map(i => `${i.quantity}x ${i.menuItem.name} (${i.price})`)
+        .map(i => `${i.quantity}x ${(i.menuItem?.name ?? i.menuName ?? "Unknown")} (${i.price})`)
         .join("; ");
       lines.push([
         csvEscape(idx + 1),
@@ -407,7 +458,7 @@ export async function exportSales(req: Request, res: Response) {
   orders.forEach((order, idx) => {
     const paidAt = order.payments?.[0]?.paidAt ?? order.createdAt;
     const itemsText = order.items
-      .map(i => `${i.quantity}x ${i.menuItem.name} (${i.price})`)
+      .map(i => `${i.quantity}x ${(i.menuItem?.name ?? i.menuName ?? "Unknown")} (${i.price})`)
       .join("; ");
 
     ordersSheet.addRow({

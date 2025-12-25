@@ -28,6 +28,7 @@ export function createApp() {
   const indexPath = path.resolve(frontendPath, "index.html");
   const customerPath = path.resolve(frontendPath, "customer.html");
   const adminPath = path.resolve(frontendPath, "admin.html");
+  const kitchenPath = path.resolve(frontendPath, "kitchen.html");
 
   const parseCookies = (cookieHeader?: string) => {
     const cookies: Record<string, string> = {};
@@ -91,6 +92,8 @@ export function createApp() {
   app.get("/admin.html", (req, res) =>
     isAdminAuthed(req) ? res.sendFile(adminPath) : res.status(401).send(adminLoginPage())
   );
+  app.get("/kitchen", (_req, res) => res.sendFile(kitchenPath));
+  app.get("/kitchen.html", (_req, res) => res.sendFile(kitchenPath));
   app.post("/admin/login", (req, res) => {
     const password = String(req.body?.password ?? "").trim();
     if (password !== adminApiKey) {

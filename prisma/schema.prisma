@@ -36,6 +36,8 @@ model MenuItem {
   price       Int
   stock       Int      @default(0)
   isAvailable Boolean  @default(true) @map("is_available")
+  isArchived  Boolean  @default(false) @map("is_archived")
+  imageUrl    String?  @map("image_url")
   createdAt   DateTime @default(now()) @map("created_at")
 
   category MenuCategory? @relation(fields: [categoryId], references: [id])
@@ -50,6 +52,8 @@ model Order {
   status        String   @default("pending") @db.VarChar(20)
   totalPrice    Int      @default(0) @map("total_price")
   paymentMethod String?  @map("payment_method") @db.VarChar(20)
+  validatedAt   DateTime? @map("validated_at")
+  servedAt      DateTime? @map("served_at")
   createdAt     DateTime @default(now()) @map("created_at")
 
   table Table? @relation(fields: [tableId], references: [id])
@@ -62,12 +66,13 @@ model Order {
 model OrderItem {
   id         String @id @default(uuid())
   orderId    String @map("order_id")
-  menuItemId String @map("menu_item_id")
+  menuItemId String? @map("menu_item_id")
+  menuName   String @map("menu_name") @db.VarChar(150)
   quantity   Int
   price      Int
 
   order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItem MenuItem @relation(fields: [menuItemId], references: [id])
+  menuItem MenuItem? @relation(fields: [menuItemId], references: [id], onDelete: SetNull)
 
   @@map("order_items")
 }

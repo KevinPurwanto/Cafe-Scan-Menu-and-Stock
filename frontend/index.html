@@ -37,7 +37,7 @@
         </div>
 
         <!-- Cards Container - Grid untuk 2 kolom di desktop, 1 kolom di mobile -->
-        <div class="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+        <div class="grid md:grid-cols-3 gap-6 max-w-6xl mx-auto">
 
             <!-- ========================================
                  CARD CUSTOMER
@@ -146,6 +146,49 @@
                     class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
                 >
                     Login Admin
+                </button>
+            </div>
+
+            <!-- ========================================
+                 CARD DAPUR
+                 ======================================== -->
+            <div class="bg-white rounded-2xl shadow-xl p-8 hover:shadow-2xl transition-shadow duration-300">
+                <div class="text-5xl mb-4 text-center">Dapur</div>
+
+                <h2 class="text-2xl font-bold text-gray-800 mb-3 text-center">
+                    Dapur
+                </h2>
+
+                <p class="text-gray-600 mb-6 text-center">
+                    Pantau antrian pesanan dan status produksi
+                </p>
+
+                <ul class="space-y-3 mb-6">
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Lihat pesanan pending dan validated</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Auto refresh berkala</span>
+                    </li>
+                    <li class="flex items-start">
+                        <svg class="w-6 h-6 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                        <span class="text-gray-700">Tampilan fokus produksi</span>
+                    </li>
+                </ul>
+
+                <button
+                    onclick="window.location.href='/kitchen'"
+                    class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-lg transition-colors duration-300 shadow-lg hover:shadow-xl"
+                >
+                    Buka Dapur
                 </button>
             </div>
 

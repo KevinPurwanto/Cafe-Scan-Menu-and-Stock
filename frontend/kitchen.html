@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dapur - Pempek Yenny</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-100">
+
+    <!-- ========================================
+         LOGIN SCREEN
+         ======================================== -->
+    <div id="login-screen" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-orange-50 to-yellow-100">
+        <div class="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md">
+                <div class="text-center mb-6">
+                    <div class="text-4xl mb-3">Dapur</div>
+                    <h2 class="text-2xl font-bold text-gray-800">Login Dapur</h2>
+                    <p class="text-gray-600 mt-2">Masukkan API Key dapur untuk akses</p>
+                </div>
+
+            <form onsubmit="login(event)" class="space-y-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">API Key Dapur</label>
+                    <input
+                        type="password"
+                        id="api-key-input"
+                        placeholder="Masukkan API key..."
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
+                </div>
+
+                <div class="bg-orange-50 border-l-4 border-orange-400 p-3 text-sm">
+                    <p class="text-orange-700">
+                        Gunakan API Key dapur (berbeda dari admin).
+                    </p>
+                </div>
+
+                <button
+                    type="submit"
+                    class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg transition-colors"
+                >
+                    Masuk Dapur
+                </button>
+
+                <a
+                    href="index.html"
+                    class="block text-center text-orange-600 hover:text-orange-800 text-sm mt-4"
+                >
+                    Kembali ke Home
+                </a>
+            </form>
+        </div>
+    </div>
+
+    <!-- ========================================
+         KITCHEN DASHBOARD
+         ======================================== -->
+    <div id="kitchen-dashboard" class="hidden">
+        <nav class="bg-orange-700 text-white shadow-lg">
+            <div class="container mx-auto px-4 py-4">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <span class="text-xl font-bold">Pempek Yenny - Dapur</span>
+                    </div>
+                    <button
+                        onclick="logout()"
+                        class="bg-orange-900 hover:bg-orange-800 px-4 py-2 rounded-lg transition-colors"
+                    >
+                        Logout
+                    </button>
+                </div>
+            </div>
+        </nav>
+
+        <div class="container mx-auto px-4 py-6">
+            <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div>
+                        <h2 class="text-2xl font-bold text-gray-800">Antrian Pesanan</h2>
+                        <p class="text-sm text-gray-500">Auto refresh setiap <span id="poll-label">10</span> detik</p>
+                        <p class="text-xs text-gray-400 mt-1">Update terakhir: <span id="last-updated">-</span></p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-3">
+                        <select
+                            id="order-status-filter"
+                            onchange="loadOrders()"
+                            class="border border-gray-300 rounded-lg px-4 py-2"
+                        >
+                            <option value="">Semua Status</option>
+                            <option value="pending">Pending</option>
+                            <option value="validated">Validated</option>
+                            <option value="paid">Paid</option>
+                            <option value="served">Served</option>
+                        </select>
+
+                        <label class="flex items-center gap-2 text-sm text-gray-600">
+                            <input
+                                type="checkbox"
+                                id="show-served"
+                                onchange="loadOrders()"
+                                class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                            >
+                            Tampilkan disajikan
+                        </label>
+
+                        <select
+                            id="poll-interval"
+                            onchange="updatePollInterval()"
+                            class="border border-gray-300 rounded-lg px-3 py-2"
+                        >
+                            <option value="5">5 detik</option>
+                            <option value="10" selected>10 detik</option>
+                            <option value="20">20 detik</option>
+                            <option value="30">30 detik</option>
+                        </select>
+
+                        <button
+                            onclick="loadOrders()"
+                            class="bg-orange-600 hover:bg-orange-700 text-white font-semibold px-4 py-2 rounded-lg"
+                        >
+                            Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="kitchen-orders">
+                <p class="text-gray-500 text-center py-8">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Scripts -->
+    <script src="js/config.js"></script>
+    <script src="js/kitchen.js"></script>
+
+</body>
+</html>

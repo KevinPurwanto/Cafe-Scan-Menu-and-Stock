@@ -10,6 +10,10 @@ const API_BASE_URL = window.location.origin === 'null'
     ? 'http://localhost:3000'
     : window.location.origin;
 
+// Supabase storage config
+const SUPABASE_URL = 'https://imlsynklqghvxezxfcyk.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_kDbgOxWNjGXJzDT03J4u3w_FDIdZMPk';
+
 // Jika deploy ke production, ganti dengan URL production:
 // const API_BASE_URL = 'https://api-anda.com';
 
@@ -21,7 +25,9 @@ const ADMIN_API_KEY = 'Pempek-Yenny';
 // Dengan export, variabel ini bisa di-import di file JS lain
 window.API_CONFIG = {
     BASE_URL: API_BASE_URL,
-    ADMIN_API_KEY: ADMIN_API_KEY
+    ADMIN_API_KEY: ADMIN_API_KEY,
+    SUPABASE_URL: SUPABASE_URL,
+    SUPABASE_ANON_KEY: SUPABASE_ANON_KEY
 };
 
 // ============================================

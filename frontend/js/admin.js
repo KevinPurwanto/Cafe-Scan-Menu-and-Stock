@@ -14,6 +14,7 @@ let orders = [];
 let categories = [];
 let menuItems = [];
 let tables = [];
+let reportOrdersCache = [];
 let confirmActionCallback = null;
 
 // Track current active tab
@@ -233,7 +234,9 @@ function renderOrders() {
 
         // Status badge color
         let statusColor = 'bg-yellow-100 text-yellow-800';
+        if (order.status === 'validated') statusColor = 'bg-blue-100 text-blue-800';
         if (order.status === 'paid') statusColor = 'bg-green-100 text-green-800';
+        if (order.status === 'served') statusColor = 'bg-teal-100 text-teal-800';
         if (order.status === 'cancelled') statusColor = 'bg-red-100 text-red-800';
 
         card.innerHTML = `
@@ -269,10 +272,307 @@ function renderOrders() {
             <div class="text-xs text-gray-500">
                 ${formatDate(order.createdAt)}
             </div>
+
+            <div class="mt-3 flex justify-end">
+                <button
+                    onclick="openOrderModal('${order.id}')"
+                    class="px-3 py-1 text-sm font-semibold text-indigo-600 border border-indigo-200 rounded-lg hover:bg-indigo-50"
+                >
+                    Kelola
+                </button>
+            </div>
         `;
 
         container.appendChild(card);
     });
+}
+
+async function openOrderModal(orderId) {
+    if (!adminApiKey) {
+        showErrorAlert('Silakan login terlebih dahulu.');
+        return;
+    }
+
+    document.getElementById('modal-title').textContent = 'Kelola Pesanan';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="text-center text-gray-500 py-6">Loading...</div>
+    `;
+    document.getElementById('modal').classList.remove('hidden');
+
+    try {
+        await ensureMenuItemsLoaded();
+        const response = await apiGet(`/orders/${orderId}`, {
+            'x-api-key': adminApiKey
+        });
+        renderOrderModal(response.data);
+    } catch (error) {
+        closeModal();
+        showErrorAlert(error.message || 'Gagal memuat detail order');
+    }
+}
+
+async function ensureMenuItemsLoaded() {
+    if (menuItems.length > 0) return;
+    const response = await apiGet('/menu/items?only_available=false');
+    menuItems = response.data;
+}
+
+function renderOrderModal(order) {
+    const isLocked = order.status === 'paid' || order.status === 'served' || order.status === 'cancelled';
+    const canValidate = order.status === 'pending';
+    const canPay = order.status === 'validated';
+    const method = order.paymentMethod || 'cash';
+
+    const availableItems = menuItems.filter(item => item.isAvailable);
+    const itemOptions = availableItems.length > 0
+        ? availableItems.map(item => `<option value="${item.id}">${item.name}</option>`).join('')
+        : '<option value="">Tidak ada menu tersedia</option>';
+
+    const itemsHtml = order.items.map(item => buildOrderItemRow(item, isLocked)).join('') || `
+        <p class="text-sm text-gray-500 text-center py-4">Tidak ada item</p>
+    `;
+
+    document.getElementById('modal-body').innerHTML = `
+        <div class="space-y-4">
+            <div class="flex justify-between items-start">
+                <div>
+                    <p class="text-xs text-gray-500">Order ID</p>
+                    <p class="font-mono text-sm font-semibold text-gray-800">${order.id}</p>
+                </div>
+                <span class="px-3 py-1 rounded-full text-xs font-semibold ${getOrderStatusClass(order.status)}">
+                    ${order.status.toUpperCase()}
+                </span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-sm">
+                <div><span class="text-gray-600">Meja:</span> <span class="font-semibold">${order.table?.tableNumber || '-'}</span></div>
+                <div><span class="text-gray-600">Total:</span> <span class="font-semibold text-blue-600">${formatRupiah(order.totalPrice)}</span></div>
+                <div><span class="text-gray-600">Payment:</span> <span class="font-semibold">${order.paymentMethod || '-'}</span></div>
+                <div><span class="text-gray-600">Status:</span> <span class="font-semibold">${order.status}</span></div>
+            </div>
+
+            <div>
+                <p class="text-sm font-semibold text-gray-700 mb-2">Items</p>
+                <div id="order-items-list">
+                    ${itemsHtml}
+                </div>
+            </div>
+
+            ${isLocked ? '' : `
+            <div class="bg-gray-50 rounded-lg p-3">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Tambah Item</label>
+                <div class="flex gap-2">
+                    <select id="order-add-item" class="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                        ${itemOptions}
+                    </select>
+                    <input
+                        type="number"
+                        id="order-add-qty"
+                        min="1"
+                        value="1"
+                        class="w-20 border border-gray-300 rounded-lg px-2 py-2 text-sm text-center"
+                    >
+                    <button
+                        type="button"
+                        onclick="addOrderItemRow()"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg text-sm"
+                        ${availableItems.length === 0 ? 'disabled' : ''}
+                    >
+                        Tambah
+                    </button>
+                </div>
+            </div>
+            `}
+
+            ${canPay ? `
+            <div class="bg-gray-50 rounded-lg p-3">
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Metode Pembayaran</label>
+                <select id="order-pay-method" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="cash" ${method === 'cash' ? 'selected' : ''}>Cash</option>
+                    <option value="qris" ${method === 'qris' ? 'selected' : ''}>QRIS</option>
+                </select>
+            </div>
+            ` : ''}
+
+            <div class="flex gap-2 pt-2">
+                ${isLocked ? '' : `
+                <button
+                    type="button"
+                    onclick="saveOrderItems('${order.id}')"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg"
+                >
+                    Simpan Perubahan
+                </button>
+                `}
+                ${canValidate ? `
+                <button
+                    type="button"
+                    onclick="validateOrderById('${order.id}')"
+                    class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 rounded-lg"
+                >
+                    Validasi
+                </button>
+                ` : ''}
+                ${canPay ? `
+                <button
+                    type="button"
+                    onclick="markOrderPaid('${order.id}')"
+                    class="flex-1 bg-green-600 hover:bg-green-700 text-white font-semibold py-2 rounded-lg"
+                >
+                    Tandai Paid
+                </button>
+                ` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function buildOrderItemRow(item, isLocked) {
+    const removeButton = isLocked
+        ? ''
+        : `<button type="button" onclick="removeOrderItemRow('${item.menuItemId}')" class="text-red-500 text-xs">Hapus</button>`;
+
+    return `
+        <div class="flex items-center gap-2 pb-2 mb-2 border-b border-gray-200" data-menu-item-id="${item.menuItemId}">
+            <div class="flex-1">
+                <p class="font-semibold text-gray-800">${item.menuItem?.name || item.menuName || 'Item'}</p>
+                <p class="text-xs text-gray-500">${formatRupiah(item.price)}</p>
+            </div>
+            <input
+                type="number"
+                min="0"
+                value="${item.quantity}"
+                class="order-item-qty w-16 border border-gray-300 rounded px-2 py-1 text-center text-sm"
+                ${isLocked ? 'disabled' : ''}
+            >
+            ${removeButton}
+        </div>
+    `;
+}
+
+function addOrderItemRow() {
+    const select = document.getElementById('order-add-item');
+    const qtyInput = document.getElementById('order-add-qty');
+    const menuItemId = select?.value;
+    const quantity = parseInt(qtyInput?.value || '0', 10);
+
+    if (!menuItemId) {
+        showErrorAlert('Pilih menu item terlebih dahulu.');
+        return;
+    }
+
+    if (isNaN(quantity) || quantity < 1) {
+        showErrorAlert('Quantity tidak valid.');
+        return;
+    }
+
+    const list = document.getElementById('order-items-list');
+    const existing = list?.querySelector(`[data-menu-item-id="${menuItemId}"]`);
+    if (existing) {
+        const qtyField = existing.querySelector('.order-item-qty');
+        const current = parseInt(qtyField.value, 10) || 0;
+        qtyField.value = current + quantity;
+    } else {
+        const menuItem = menuItems.find(item => item.id === menuItemId);
+        if (!menuItem) {
+            showErrorAlert('Menu item tidak ditemukan.');
+            return;
+        }
+        const wrapper = document.createElement('div');
+        wrapper.innerHTML = buildOrderItemRow({
+            menuItemId: menuItem.id,
+            menuItem,
+            price: menuItem.price,
+            quantity
+        }, false);
+        list.appendChild(wrapper.firstElementChild);
+    }
+
+    qtyInput.value = '1';
+}
+
+function removeOrderItemRow(menuItemId) {
+    const list = document.getElementById('order-items-list');
+    const row = list?.querySelector(`[data-menu-item-id="${menuItemId}"]`);
+    if (row) {
+        row.remove();
+    }
+}
+
+function collectOrderItemsFromModal() {
+    const list = document.getElementById('order-items-list');
+    const rows = list?.querySelectorAll('[data-menu-item-id]') || [];
+    const items = [];
+
+    rows.forEach(row => {
+        const menuItemId = row.getAttribute('data-menu-item-id');
+        const qtyInput = row.querySelector('.order-item-qty');
+        const quantity = parseInt(qtyInput?.value || '0', 10);
+        if (menuItemId && quantity > 0) {
+            items.push({ menuItemId, quantity });
+        }
+    });
+
+    return items;
+}
+
+async function saveOrderItems(orderId) {
+    try {
+        const items = collectOrderItemsFromModal();
+        if (items.length === 0) {
+            showErrorAlert('Minimal 1 item diperlukan.');
+            return;
+        }
+
+        await apiPatch(`/orders/${orderId}/items`, { items }, {
+            'x-api-key': adminApiKey
+        });
+
+        showSuccess('Order berhasil diperbarui.');
+        closeModal();
+        await loadOrders();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal memperbarui order');
+    }
+}
+
+async function validateOrderById(orderId) {
+    try {
+        await apiPost(`/orders/${orderId}/validate`, {}, {
+            'x-api-key': adminApiKey
+        });
+
+        showSuccess('Order berhasil divalidasi.');
+        closeModal();
+        await loadOrders();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal memvalidasi order');
+    }
+}
+
+async function markOrderPaid(orderId) {
+    try {
+        const methodSelect = document.getElementById('order-pay-method');
+        const method = methodSelect?.value || 'cash';
+
+        await apiPost(`/orders/${orderId}/pay`, { method }, {
+            'x-api-key': adminApiKey
+        });
+
+        showSuccess('Pembayaran berhasil dicatat.');
+        closeModal();
+        await loadOrders();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal mencatat pembayaran');
+    }
+}
+
+function getOrderStatusClass(status) {
+    if (status === 'validated') return 'bg-blue-100 text-blue-800';
+    if (status === 'paid') return 'bg-green-100 text-green-800';
+    if (status === 'served') return 'bg-teal-100 text-teal-800';
+    if (status === 'cancelled') return 'bg-red-100 text-red-800';
+    return 'bg-yellow-100 text-yellow-800';
 }
 
 // ========================================
@@ -413,7 +713,7 @@ async function confirmDeleteCategory(categoryId) {
  */
 async function loadMenuItems() {
     try {
-        const response = await apiGet('/menu/items?only_available=false');
+        const response = await apiGet('/menu/items?only_available=false&include_archived=true');
         menuItems = response.data;
         renderMenuItems();
     } catch (error) {
@@ -433,9 +733,10 @@ function renderMenuItems() {
         return;
     }
 
-    // Tampilkan hanya 5 items pertama (untuk tidak terlalu panjang)
-    // Bisa ditambahkan pagination di versi production
-    const displayItems = menuItems.slice(0, 5);
+    const displayItems = [...menuItems].sort((a, b) => {
+        if (a.isArchived === b.isArchived) return 0;
+        return a.isArchived ? 1 : -1;
+    });
 
     container.innerHTML = '';
 
@@ -443,38 +744,237 @@ function renderMenuItems() {
         const itemDiv = document.createElement('div');
         itemDiv.className = 'p-3 bg-gray-50 rounded-lg mb-2';
 
+        const statusLabel = item.isArchived
+            ? '<span class="text-gray-500 text-xs">Archived</span>'
+            : `<span class="${item.isAvailable ? 'text-green-600' : 'text-red-600'} text-xs">
+                    ${item.isAvailable ? 'Available' : 'Not Available'}
+                </span>`;
+
+        const editButton = `
+            <button
+                onclick="showEditItemForm('${item.id}')"
+                class="text-blue-600 hover:text-blue-700 text-sm"
+            >
+                Edit
+            </button>
+        `;
+
+        const actionButton = item.isArchived
+            ? `
+                <div class="flex flex-col items-end gap-1">
+                    ${editButton}
+                    <button
+                        onclick="unarchiveMenuItem('${item.id}')"
+                        class="text-indigo-600 hover:text-indigo-700 text-sm"
+                    >
+                        Pulihkan
+                    </button>
+                </div>
+            `
+            : `
+                <div class="flex flex-col items-end gap-1">
+                    ${editButton}
+                    <button
+                        onclick="deleteMenuItem('${item.id}')"
+                        class="text-red-500 hover:text-red-700 text-sm"
+                    >
+                        Arsipkan
+                    </button>
+                </div>
+            `;
+
         itemDiv.innerHTML = `
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1">
                     <p class="font-semibold text-gray-800">${item.name}</p>
                     <p class="text-xs text-gray-500">${item.category?.name || 'No category'}</p>
                 </div>
-                <button
-                    onclick="deleteMenuItem('${item.id}')"
-                    class="text-red-500 hover:text-red-700 text-sm"
-                >
-                    Hapus
-                </button>
+                ${actionButton}
             </div>
             <div class="flex justify-between items-center text-sm">
                 <span class="text-blue-600 font-semibold">${formatRupiah(item.price)}</span>
                 <span class="text-gray-600">Stok: ${item.stock}</span>
-                <span class="${item.isAvailable ? 'text-green-600' : 'text-red-600'} text-xs">
-                    ${item.isAvailable ? '✓ Available' : '✗ Not Available'}
-                </span>
+                ${statusLabel}
             </div>
         `;
 
         container.appendChild(itemDiv);
     });
+}
 
-    // Show info jika ada lebih dari 5 items
-    if (menuItems.length > 5) {
-        const info = document.createElement('p');
-        info.className = 'text-center text-sm text-gray-500 mt-3';
-        info.textContent = `Showing 5 of ${menuItems.length} items`;
-        container.appendChild(info);
+function getImageUploadConfig() {
+    return {
+        bucket: 'menu-images',
+        maxWidth: 800,
+        maxSizeKB: 300,
+        quality: 0.82,
+        mimeType: 'image/jpeg',
+        extension: 'jpg',
+        maxUploadBytes: 1024 * 1024
+    };
+}
+
+function getSupabaseConfig() {
+    const config = window.API_CONFIG || {};
+    return {
+        url: config.SUPABASE_URL || '',
+        anonKey: config.SUPABASE_ANON_KEY || ''
+    };
+}
+
+function getStoragePathFromPublicUrl(url, bucket) {
+    try {
+        const supabase = getSupabaseConfig();
+        if (!supabase.url) return null;
+        const baseUrl = `${supabase.url}/storage/v1/object/public/${bucket}/`;
+        if (!url.startsWith(baseUrl)) return null;
+        return url.slice(baseUrl.length);
+    } catch (_err) {
+        return null;
     }
+}
+
+async function deleteMenuImageByUrl(url) {
+    if (!url) return;
+    const config = getImageUploadConfig();
+    const supabase = getSupabaseConfig();
+    if (!supabase.url || !supabase.anonKey) return;
+
+    const path = getStoragePathFromPublicUrl(url, config.bucket);
+    if (!path) return;
+
+    const deleteUrl = `${supabase.url}/storage/v1/object/${config.bucket}/${path}`;
+    const response = await fetch(deleteUrl, {
+        method: 'DELETE',
+        headers: {
+            'apikey': supabase.anonKey,
+            'Authorization': `Bearer ${supabase.anonKey}`
+        }
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        console.warn('Failed to delete image:', errorText);
+    }
+}
+
+function generateImagePath(config) {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return `menu/${window.crypto.randomUUID()}.${config.extension}`;
+    }
+    const rand = Math.random().toString(36).slice(2, 10);
+    return `menu/${Date.now()}-${rand}.${config.extension}`;
+}
+
+function loadImageFromFile(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const reader = new FileReader();
+        reader.onload = () => {
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('Failed to load image'));
+            img.src = reader.result;
+        };
+        reader.onerror = () => reject(new Error('Failed to read image'));
+        reader.readAsDataURL(file);
+    });
+}
+
+function canvasToBlob(canvas, type, quality) {
+    return new Promise((resolve, reject) => {
+        canvas.toBlob(blob => {
+            if (!blob) {
+                reject(new Error('Failed to compress image'));
+                return;
+            }
+            resolve(blob);
+        }, type, quality);
+    });
+}
+
+async function compressImageFile(file, config) {
+    const image = await loadImageFromFile(file);
+    let width = image.width;
+    let height = image.height;
+    if (width > config.maxWidth) {
+        const ratio = config.maxWidth / width;
+        width = config.maxWidth;
+        height = Math.round(height * ratio);
+    }
+
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Canvas not supported');
+
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(image, 0, 0, width, height);
+
+    let quality = config.quality;
+    let blob = await canvasToBlob(canvas, config.mimeType, quality);
+    let attempts = 0;
+
+    while (blob.size > config.maxSizeKB * 1024 && attempts < 6) {
+        attempts += 1;
+        if (quality > 0.5) {
+            quality = Math.max(0.5, quality - 0.1);
+        } else {
+            width = Math.max(320, Math.round(width * 0.85));
+            height = Math.max(240, Math.round(height * 0.85));
+            canvas.width = width;
+            canvas.height = height;
+            ctx.drawImage(image, 0, 0, width, height);
+            quality = 0.7;
+        }
+        blob = await canvasToBlob(canvas, config.mimeType, quality);
+    }
+
+    return blob;
+}
+
+async function uploadMenuImage(file) {
+    if (!file) return null;
+    if (!file.type.startsWith('image/')) {
+        throw new Error('File harus berupa gambar');
+    }
+
+    const supabase = getSupabaseConfig();
+    if (!supabase.url || !supabase.anonKey) {
+        throw new Error('Supabase config belum diisi');
+    }
+
+    const config = getImageUploadConfig();
+    const blob = await compressImageFile(file, config);
+    if (blob.size > config.maxUploadBytes) {
+        throw new Error('Ukuran gambar setelah kompres melebihi 1MB.');
+    }
+    const path = generateImagePath(config);
+    const uploadUrl = `${supabase.url}/storage/v1/object/${config.bucket}/${path}`;
+
+    const response = await fetch(uploadUrl, {
+        method: 'POST',
+        headers: {
+            'Content-Type': config.mimeType,
+            'apikey': supabase.anonKey,
+            'Authorization': `Bearer ${supabase.anonKey}`,
+            'x-upsert': 'true'
+        },
+        body: blob
+    });
+
+    if (!response.ok) {
+        const errorText = await response.text();
+        let message = errorText;
+        try {
+            const data = JSON.parse(errorText);
+            if (data?.message) message = data.message;
+        } catch (_err) {
+            // ignore parse error
+        }
+        throw new Error(message || 'Gagal upload gambar');
+    }
+
+    return `${supabase.url}/storage/v1/object/public/${config.bucket}/${path}`;
 }
 
 /**
@@ -532,6 +1032,16 @@ function showAddItemForm() {
                 </div>
             </div>
             <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Gambar Menu (opsional)</label>
+                <input
+                    type="file"
+                    id="item-image"
+                    accept="image/*"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                >
+                <p class="text-xs text-gray-500 mt-1">Akan dikompres sebelum upload (maks 300KB).</p>
+            </div>
+            <div>
                 <label class="flex items-center">
                     <input type="checkbox" id="item-available" checked class="mr-2">
                     <span class="text-sm text-gray-700">Available untuk dijual</span>
@@ -555,15 +1065,24 @@ function showAddItemForm() {
 async function submitAddMenuItem(event) {
     event.preventDefault();
 
-    const data = {
-        name: document.getElementById('item-name').value.trim(),
-        categoryId: document.getElementById('item-category').value || undefined,
-        price: parseInt(document.getElementById('item-price').value),
-        stock: parseInt(document.getElementById('item-stock').value),
-        isAvailable: document.getElementById('item-available').checked
-    };
+    const imageInput = document.getElementById('item-image');
+    const imageFile = imageInput?.files?.[0] || null;
 
     try {
+        let imageUrl;
+        if (imageFile) {
+            imageUrl = await uploadMenuImage(imageFile);
+        }
+
+        const data = {
+            name: document.getElementById('item-name').value.trim(),
+            categoryId: document.getElementById('item-category').value || undefined,
+            price: parseInt(document.getElementById('item-price').value),
+            stock: parseInt(document.getElementById('item-stock').value),
+            isAvailable: document.getElementById('item-available').checked,
+            imageUrl: imageUrl
+        };
+
         await apiPost('/menu/items', data, {
             'x-api-key': adminApiKey
         });
@@ -582,11 +1101,63 @@ async function submitAddMenuItem(event) {
  */
 function deleteMenuItem(itemId) {
     openConfirmModal({
-        title: 'Hapus Menu',
-        message: 'Menu item akan dihapus permanen.',
-        confirmText: 'Hapus',
+        title: 'Arsipkan Menu',
+        message: 'Menu item akan diarsipkan dan disembunyikan dari menu.',
+        confirmText: 'Arsipkan',
         onConfirm: () => confirmDeleteMenuItem(itemId)
     });
+}
+
+async function submitEditMenuItem(event, itemId) {
+    event.preventDefault();
+
+    const item = menuItems.find(menuItem => menuItem.id === itemId);
+    if (!item) {
+        showErrorAlert('Menu item tidak ditemukan');
+        return;
+    }
+
+    const imageInput = document.getElementById('edit-item-image');
+    const imageFile = imageInput?.files?.[0] || null;
+    const removeImage = document.getElementById('edit-item-remove-image')?.checked;
+
+    try {
+        let newImageUrl;
+        if (imageFile) {
+            newImageUrl = await uploadMenuImage(imageFile);
+        }
+
+        const data = {
+            name: document.getElementById('edit-item-name').value.trim(),
+            categoryId: document.getElementById('edit-item-category').value || undefined,
+            price: parseInt(document.getElementById('edit-item-price').value),
+            stock: parseInt(document.getElementById('edit-item-stock').value),
+            isAvailable: document.getElementById('edit-item-available').checked
+        };
+
+        if (newImageUrl) {
+            data.imageUrl = newImageUrl;
+        } else if (removeImage) {
+            data.imageUrl = null;
+        }
+
+        await apiPatch(`/menu/items/${itemId}`, data, {
+            'x-api-key': adminApiKey
+        });
+
+        if (newImageUrl && item.imageUrl) {
+            await deleteMenuImageByUrl(item.imageUrl);
+        } else if (removeImage && item.imageUrl) {
+            await deleteMenuImageByUrl(item.imageUrl);
+        }
+
+        showSuccess('Menu item berhasil diperbarui');
+        closeModal();
+        await loadMenuItems();
+
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal memperbarui menu item');
+    }
 }
 
 async function confirmDeleteMenuItem(itemId) {
@@ -596,11 +1167,133 @@ async function confirmDeleteMenuItem(itemId) {
             'x-api-key': adminApiKey
         });
 
-        showSuccess('Menu item berhasil dihapus');
+        showSuccess('Menu item berhasil diarsipkan');
         await loadMenuItems();
 
     } catch (error) {
-        showErrorAlert(error.message || 'Gagal menghapus menu item');
+        showErrorAlert(error.message || 'Gagal mengarsipkan menu item');
+    }
+}
+
+function showEditItemForm(itemId) {
+    const item = menuItems.find(menuItem => menuItem.id === itemId);
+    if (!item) {
+        showErrorAlert('Menu item tidak ditemukan');
+        return;
+    }
+
+    document.getElementById('modal-title').textContent = 'Edit Menu Item';
+
+    const categoryOptions = categories.map(cat =>
+        `<option value="${cat.id}" ${item.categoryId === cat.id ? 'selected' : ''}>${cat.name}</option>`
+    ).join('');
+
+    const currentImageHtml = item.imageUrl
+        ? `
+            <div class="mt-2">
+                <p class="text-xs text-gray-500 mb-1">Gambar saat ini:</p>
+                <img src="${item.imageUrl}" alt="${item.name}" class="h-24 w-24 object-cover rounded border" />
+            </div>
+        `
+        : '<p class="text-xs text-gray-400 mt-2">Belum ada gambar.</p>';
+
+    document.getElementById('modal-body').innerHTML = `
+        <form onsubmit="submitEditMenuItem(event, '${item.id}')" class="space-y-3">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Nama Menu</label>
+                <input
+                    type="text"
+                    id="edit-item-name"
+                    value="${item.name}"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                >
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Kategori</label>
+                <select id="edit-item-category" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm">
+                    <option value="">Tanpa Kategori</option>
+                    ${categoryOptions}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Harga</label>
+                    <input
+                        type="number"
+                        id="edit-item-price"
+                        value="${item.price}"
+                        required
+                        min="0"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Stok</label>
+                    <input
+                        type="number"
+                        id="edit-item-stock"
+                        value="${item.stock}"
+                        required
+                        min="0"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                </div>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Gambar Menu (opsional)</label>
+                <input
+                    type="file"
+                    id="edit-item-image"
+                    accept="image/*"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white"
+                >
+                <label class="flex items-center mt-2 text-xs text-gray-600">
+                    <input type="checkbox" id="edit-item-remove-image" class="mr-2">
+                    Hapus gambar saat ini
+                </label>
+                ${currentImageHtml}
+            </div>
+            <div>
+                <label class="flex items-center">
+                    <input type="checkbox" id="edit-item-available" ${item.isAvailable ? 'checked' : ''} class="mr-2">
+                    <span class="text-sm text-gray-700">Available untuk dijual</span>
+                </label>
+            </div>
+            <button
+                type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm"
+            >
+                Simpan Perubahan
+            </button>
+        </form>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+function unarchiveMenuItem(itemId) {
+    openConfirmModal({
+        title: 'Pulihkan Menu',
+        message: 'Menu item akan dipulihkan dan muncul kembali di menu.',
+        confirmText: 'Pulihkan',
+        confirmClass: 'bg-indigo-600 hover:bg-indigo-700',
+        onConfirm: () => confirmUnarchiveMenuItem(itemId)
+    });
+}
+
+async function confirmUnarchiveMenuItem(itemId) {
+    try {
+        closeModal();
+        await apiPatch(`/menu/items/${itemId}`, { isArchived: false, isAvailable: true }, {
+            'x-api-key': adminApiKey
+        });
+
+        showSuccess('Menu item berhasil dipulihkan');
+        await loadMenuItems();
+
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal memulihkan menu item');
     }
 }
 
@@ -924,6 +1617,8 @@ async function loadReport() {
 function renderDailyReport(data) {
     const container = document.getElementById('report-content');
 
+    const ordersHtml = renderReportOrders(data.orders || []);
+
     container.innerHTML = `
         <!-- Summary Cards -->
         <div class="grid md:grid-cols-3 gap-4 mb-6">
@@ -971,7 +1666,14 @@ function renderDailyReport(data) {
                 </div>
             `).join('') : '<p class="text-gray-500 text-sm">No data</p>'}
         </div>
+
+        <!-- Orders Detail -->
+        <div class="bg-gray-50 rounded-lg p-4 mt-6">
+            <h4 class="font-bold text-gray-800 mb-3">Detail Orders</h4>
+            ${ordersHtml}
+        </div>
     `;
+    setReportOrders(data.orders || []);
 }
 
 /**
@@ -979,6 +1681,7 @@ function renderDailyReport(data) {
  */
 function renderSummaryReport(data) {
     const container = document.getElementById('report-content');
+    const ordersHtml = renderReportOrders(data.orders || []);
 
     container.innerHTML = `
         <!-- Summary Cards -->
@@ -1036,6 +1739,176 @@ function renderSummaryReport(data) {
                     <p class="text-lg font-semibold text-gray-900">${data.inventory.totalTables}</p>
                 </div>
             </div>
+        </div>
+
+        <!-- Orders Detail -->
+        <div class="bg-gray-50 rounded-lg p-4 mt-6">
+            <h4 class="font-bold text-gray-800 mb-3">Detail Orders</h4>
+            ${ordersHtml}
+        </div>
+    `;
+    setReportOrders(data.orders || []);
+}
+
+function renderReportOrders(orders) {
+    const initialState = getReportFilterState(false);
+    const initialOrders = sortAndFilterReportOrders(orders || [], initialState);
+    const tableHtml = renderReportOrdersTable(initialOrders);
+
+    return `
+        <div class="grid md:grid-cols-4 gap-3 mb-2">
+            <input
+                type="number"
+                id="report-table-filter"
+                placeholder="Filter meja"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                oninput="updateReportOrders()"
+            >
+            <select
+                id="report-payment-filter"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                onchange="updateReportOrders()"
+            >
+                <option value="">Semua Payment</option>
+                <option value="cash">Cash</option>
+                <option value="qris">QRIS</option>
+            </select>
+            <select
+                id="report-sort-by"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                onchange="updateReportOrders()"
+            >
+                <option value="paidAt" selected>Waktu Bayar</option>
+                <option value="totalPrice">Total</option>
+                <option value="tableNumber">Meja</option>
+            </select>
+            <select
+                id="report-sort-dir"
+                class="border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                onchange="updateReportOrders()"
+            >
+                <option value="desc" selected>Terbaru</option>
+                <option value="asc">Terlama</option>
+            </select>
+        </div>
+        <p id="report-orders-count" class="text-xs text-gray-500 mb-2"></p>
+        <div id="report-orders-table">
+            ${tableHtml}
+        </div>
+    `;
+}
+
+function setReportOrders(orders) {
+    reportOrdersCache = Array.isArray(orders) ? orders : [];
+    updateReportOrders();
+}
+
+function updateReportOrders() {
+    const container = document.getElementById('report-orders-table');
+    if (!container) return;
+
+    const state = getReportFilterState(true);
+    const filtered = sortAndFilterReportOrders(reportOrdersCache, state);
+    container.innerHTML = renderReportOrdersTable(filtered);
+
+    const countLabel = document.getElementById('report-orders-count');
+    if (countLabel) {
+        countLabel.textContent = `Menampilkan ${filtered.length} dari ${reportOrdersCache.length}`;
+    }
+}
+
+function getReportFilterState(useDom = true) {
+    if (!useDom) {
+        return {
+            tableFilter: '',
+            paymentFilter: '',
+            sortBy: 'paidAt',
+            sortDir: 'desc'
+        };
+    }
+
+    return {
+        tableFilter: document.getElementById('report-table-filter')?.value?.trim() || '',
+        paymentFilter: document.getElementById('report-payment-filter')?.value || '',
+        sortBy: document.getElementById('report-sort-by')?.value || 'paidAt',
+        sortDir: document.getElementById('report-sort-dir')?.value || 'desc'
+    };
+}
+
+function sortAndFilterReportOrders(orders, state) {
+    let filtered = [...orders];
+
+    if (state.tableFilter) {
+        const tableValue = parseInt(state.tableFilter, 10);
+        filtered = filtered.filter(order => {
+            if (order.tableNumber === null || order.tableNumber === undefined) return false;
+            return order.tableNumber === tableValue;
+        });
+    }
+
+    if (state.paymentFilter) {
+        filtered = filtered.filter(order => order.paymentMethod === state.paymentFilter);
+    }
+
+    const dir = state.sortDir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+        let aValue;
+        let bValue;
+
+        if (state.sortBy === 'totalPrice') {
+            aValue = a.totalPrice || 0;
+            bValue = b.totalPrice || 0;
+        } else if (state.sortBy === 'tableNumber') {
+            aValue = a.tableNumber ?? 0;
+            bValue = b.tableNumber ?? 0;
+        } else {
+            aValue = new Date(a.paidAt || a.createdAt).getTime();
+            bValue = new Date(b.paidAt || b.createdAt).getTime();
+        }
+
+        if (aValue === bValue) return 0;
+        return aValue > bValue ? dir : -dir;
+    });
+
+    return filtered;
+}
+
+function renderReportOrdersTable(orders) {
+    if (!orders || orders.length === 0) {
+        return '<p class="text-gray-500 text-sm">No data</p>';
+    }
+
+    const rows = orders.map(order => {
+        const itemsText = (order.items || [])
+            .map(item => `${item.quantity}x ${item.name} (${formatRupiah(item.price)})`)
+            .join(', ');
+        return `
+            <tr class="border-b border-gray-200 last:border-0">
+                <td class="py-2 pr-3 text-xs text-gray-600">${order.id.substring(0, 8)}...</td>
+                <td class="py-2 pr-3 text-xs text-gray-700">${order.tableNumber ?? '-'}</td>
+                <td class="py-2 pr-3 text-xs text-gray-700">${order.paymentMethod ?? '-'}</td>
+                <td class="py-2 pr-3 text-xs text-gray-700">${formatRupiah(order.totalPrice)}</td>
+                <td class="py-2 text-xs text-gray-700">${itemsText || '-'}</td>
+            </tr>
+        `;
+    }).join('');
+
+    return `
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-left text-sm">
+                <thead>
+                    <tr class="text-xs uppercase text-gray-500 border-b border-gray-300">
+                        <th class="py-2 pr-3">Order ID</th>
+                        <th class="py-2 pr-3">Meja</th>
+                        <th class="py-2 pr-3">Payment</th>
+                        <th class="py-2 pr-3">Total</th>
+                        <th class="py-2">Items</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${rows}
+                </tbody>
+            </table>
         </div>
     `;
 }
@@ -1113,6 +1986,17 @@ function formatDateValue(date) {
     return `${year}-${month}-${day}`;
 }
 
+function getReportOrdersLimit() {
+    const limitValue = document.getElementById('report-orders-limit')?.value || '50';
+    const limit = parseInt(limitValue, 10);
+    return Number.isFinite(limit) && limit > 0 ? limit : 50;
+}
+
+function withOrdersLimit(endpoint) {
+    const separator = endpoint.includes('?') ? '&' : '?';
+    return `${endpoint}${separator}orders_limit=${getReportOrdersLimit()}`;
+}
+
 function buildReportRequest() {
     const period = document.getElementById('report-period')?.value || 'day';
     const today = new Date();
@@ -1120,7 +2004,7 @@ function buildReportRequest() {
     if (period === 'day') {
         const date = document.getElementById('report-date')?.value;
         if (!date) throw new Error('Pilih tanggal terlebih dahulu');
-        return { endpoint: `/reports/daily?date=${date}`, period };
+        return { endpoint: withOrdersLimit(`/reports/daily?date=${date}`), period };
     }
 
     if (period === 'month') {
@@ -1130,7 +2014,7 @@ function buildReportRequest() {
         const lastDay = new Date(year, monthNum, 0).getDate();
         const startDate = `${month}-01`;
         const endDate = `${month}-${String(lastDay).padStart(2, '0')}`;
-        return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period };
+        return { endpoint: withOrdersLimit(`/reports/summary?start_date=${startDate}&end_date=${endDate}`), period };
     }
 
     if (period === 'year') {
@@ -1138,19 +2022,19 @@ function buildReportRequest() {
         if (!year) throw new Error('Isi tahun terlebih dahulu');
         const startDate = `${year}-01-01`;
         const endDate = `${year}-12-31`;
-        return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period };
+        return { endpoint: withOrdersLimit(`/reports/summary?start_date=${startDate}&end_date=${endDate}`), period };
     }
 
     if (period === 'range') {
         const start = document.getElementById('report-start')?.value;
         const end = document.getElementById('report-end')?.value;
         if (!start || !end) throw new Error('Lengkapi start dan end date');
-        return { endpoint: `/reports/summary?start_date=${start}&end_date=${end}`, period };
+        return { endpoint: withOrdersLimit(`/reports/summary?start_date=${start}&end_date=${end}`), period };
     }
 
     const startDate = '1970-01-01';
     const endDate = formatDateValue(today);
-    return { endpoint: `/reports/summary?start_date=${startDate}&end_date=${endDate}`, period: 'all' };
+    return { endpoint: withOrdersLimit(`/reports/summary?start_date=${startDate}&end_date=${endDate}`), period: 'all' };
 }
 
 /**
@@ -1275,3 +2159,4 @@ function closeModal(event) {
     }
     confirmActionCallback = null;
 }
+

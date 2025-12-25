@@ -20,11 +20,13 @@ export async function listCategories(_req: Request, res: Response) {
 export async function listItems(req: Request, res: Response) {
   const categoryId = req.query.category_id?.toString();
   const onlyAvailable = req.query.only_available?.toString() !== "false";
+  const includeArchived = req.query.include_archived?.toString() === "true";
 
   const data = await prisma.menuItem.findMany({
     where: {
       ...(categoryId ? { categoryId } : {}),
-      ...(onlyAvailable ? { isAvailable: true } : {})
+      ...(onlyAvailable ? { isAvailable: true } : {}),
+      ...(includeArchived ? {} : { isArchived: false })
     },
     orderBy: { createdAt: "desc" },
     include: { category: true }
@@ -81,7 +83,8 @@ const CreateItemSchema = z.object({
   name: z.string().min(2).max(150),
   price: z.number().int().min(0),
   stock: z.number().int().min(0).optional(),
-  isAvailable: z.boolean().optional()
+  isAvailable: z.boolean().optional(),
+  imageUrl: z.string().url().optional()
 });
 
 export async function createItem(req: Request, res: Response) {
@@ -108,7 +111,9 @@ const UpdateItemSchema = z.object({
   name: z.string().min(2).max(150).optional(),
   price: z.number().int().min(0).optional(),
   stock: z.number().int().min(0).optional(),
-  isAvailable: z.boolean().optional()
+  isAvailable: z.boolean().optional(),
+  isArchived: z.boolean().optional(),
+  imageUrl: z.string().url().nullable().optional()
 });
 
 export async function updateItem(req: Request, res: Response) {
@@ -132,27 +137,15 @@ export async function updateItem(req: Request, res: Response) {
 
 // Remove menu item
 export async function removeItem(req: Request, res: Response) {
-  // Check if item is used in any pending orders
   const item = await prisma.menuItem.findUnique({
-    where: { id: req.params.id },
-    include: {
-      orderItems: {
-        include: {
-          order: {
-            select: { status: true }
-          }
-        }
-      }
-    }
+    where: { id: req.params.id }
   });
 
   if (!item) throw new HttpError(404, "Menu item not found");
 
-  const hasPendingOrders = item.orderItems.some(oi => oi.order.status === "pending");
-  if (hasPendingOrders) {
-    throw new HttpError(400, "Cannot delete item with pending orders");
-  }
-
-  await prisma.menuItem.delete({ where: { id: req.params.id } });
+  await prisma.menuItem.update({
+    where: { id: req.params.id },
+    data: { isArchived: true, isAvailable: false }
+  });
   res.json({ success: true });
 }
