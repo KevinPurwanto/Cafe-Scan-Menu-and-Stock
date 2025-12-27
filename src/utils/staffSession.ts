@@ -1,5 +1,5 @@
 import type { Request, Response } from "express";
-import jwt from "jsonwebtoken";
+import jwt, { type SignOptions } from "jsonwebtoken";
 import { requireEnv } from "./env";
 import type { AdminSession } from "./adminSession";
 
@@ -19,7 +19,10 @@ function parseCookies(cookieHeader?: string) {
 export function signStaffSession(payload: AdminSession) {
   const secret = requireEnv("ADMIN_JWT_SECRET");
   const ttl = process.env.STAFF_SESSION_TTL ?? "7d";
-  return jwt.sign(payload, secret, { expiresIn: ttl });
+  const expiresIn: SignOptions["expiresIn"] = /^\d+$/.test(ttl)
+    ? Number(ttl)
+    : (ttl as SignOptions["expiresIn"]);
+  return jwt.sign(payload, secret, { expiresIn });
 }
 
 export function setStaffSessionCookie(res: Response, token: string, secure = false) {

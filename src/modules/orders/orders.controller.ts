@@ -97,13 +97,17 @@ export async function validateOrder(req: Request, res: Response) {
     throw new HttpError(400, `Cannot validate order with status: ${order.status}`);
   }
 
-  const menuIds = order.items.map(i => i.menuItemId);
+  const menuIds = order.items.map(item => {
+    if (!item.menuItemId) throw new HttpError(400, "Menu item not found");
+    return item.menuItemId;
+  });
   const menuItems = await prisma.menuItem.findMany({
     where: { id: { in: menuIds } }
   });
   const menuMap = new Map(menuItems.map(m => [m.id, m]));
 
   for (const item of order.items) {
+    if (!item.menuItemId) throw new HttpError(400, "Menu item not found");
     const menuItem = menuMap.get(item.menuItemId);
     if (!menuItem) throw new HttpError(400, "Menu item not found");
     if (menuItem.stock < item.quantity) {
@@ -113,6 +117,7 @@ export async function validateOrder(req: Request, res: Response) {
 
   const updatedOrder = await prisma.$transaction(async (tx) => {
     for (const item of order.items) {
+      if (!item.menuItemId) throw new HttpError(400, "Menu item not found");
       await tx.menuItem.update({
         where: { id: item.menuItemId },
         data: { stock: { decrement: item.quantity } }
@@ -463,6 +468,7 @@ export async function cancelOrder(req: Request, res: Response) {
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
       for (const item of order.items) {
+        if (!item.menuItemId) continue;
         await tx.menuItem.update({
           where: { id: item.menuItemId },
           data: { stock: { increment: item.quantity } }
