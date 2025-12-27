@@ -45,7 +45,25 @@ Copy file `.env` dan edit dengan kredensial database Anda:
 ```env
 PORT=3000
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
-ADMIN_API_KEY="my-secret-admin-key-123"
+ADMIN_JWT_SECRET="change-me"
+ADMIN_SEED_USERNAME="owner"
+ADMIN_SEED_PASSWORD="change-me"
+ADMIN_SEED_EMAIL="owner@example.com"
+ADMIN_RESET_EMAIL="owner@example.com"
+SMTP_HOST="smtp.gmail.com"
+SMTP_PORT=465
+SMTP_USER="owner@example.com"
+SMTP_PASS="app-password"
+SMTP_FROM="Pempek Yenny <owner@example.com>"
+ADMIN_RESET_TOKEN_TTL_MINUTES=60
+ADMIN_SESSION_TTL="7d"
+ADMIN_SESSION_DAYS=7
+STAFF_SESSION_TTL="7d"
+STAFF_SESSION_DAYS=7
+KITCHEN_SEED_USERNAME="kitchen"
+KITCHEN_SEED_PASSWORD="change-me"
+KITCHEN_SEED_EMAIL="kitchen@example.com"
+KITCHEN_API_KEY="change-me"
 ```
 
 **Untuk mendapatkan DATABASE_URL dari Supabase:**
@@ -140,8 +158,8 @@ Cafe-Scan-Menu-and-Stock/
 - `POST /orders/:id/pay` - Pay order
 - `POST /orders/:id/cancel` - Cancel order
 
-### Admin Endpoints (Requires API Key)
-Header: `x-api-key: my-secret-admin-key-123`
+### Admin Endpoints (Requires Admin Session Cookie)
+Login via `POST /auth/admin/login` to receive HttpOnly cookie.
 
 - `GET /tables` - List tables
 - `POST /tables` - Create table
@@ -156,6 +174,14 @@ Header: `x-api-key: my-secret-admin-key-123`
 - `GET /orders` - List all orders
 - `GET /reports/daily?date=YYYY-MM-DD` - Daily report
 - `GET /reports/summary?start_date=YYYY-MM-DD&end_date=YYYY-MM-DD` - Summary report
+- `POST /auth/admin/forgot-password` - Send reset link
+- `POST /auth/admin/reset-password` - Reset admin password
+
+### Staff Endpoints (Requires Staff Session Cookie)
+Login via `POST /auth/staff/login` to receive HttpOnly cookie.
+
+- `POST /orders/:id/serve` - Mark order served
+- `POST /orders/:id/unserve` - Undo serve
 
 ## Dokumentasi API Lengkap
 
@@ -243,7 +269,25 @@ npm run build
 Pastikan semua environment variables sudah di-set di production:
 - `PORT`
 - `DATABASE_URL`
-- `ADMIN_API_KEY`
+- `ADMIN_JWT_SECRET`
+- `ADMIN_SEED_USERNAME`
+- `ADMIN_SEED_PASSWORD`
+- `ADMIN_SEED_EMAIL`
+- `ADMIN_RESET_EMAIL`
+- `ADMIN_RESET_TOKEN_TTL_MINUTES`
+- `ADMIN_SESSION_TTL`
+- `ADMIN_SESSION_DAYS`
+- `STAFF_SESSION_TTL`
+- `STAFF_SESSION_DAYS`
+- `SMTP_HOST`
+- `SMTP_PORT`
+- `SMTP_USER`
+- `SMTP_PASS`
+- `SMTP_FROM`
+- `KITCHEN_SEED_USERNAME`
+- `KITCHEN_SEED_PASSWORD`
+- `KITCHEN_SEED_EMAIL`
+- `KITCHEN_API_KEY`
 
 ### 3. Run
 ```bash
@@ -259,7 +303,7 @@ npm start
 
 ## Security Notes
 
-- **API Key**: Ganti `ADMIN_API_KEY` di production dengan value yang strong
+- **JWT Secret**: Ganti `ADMIN_JWT_SECRET` di production dengan value yang strong
 - **Database URL**: Jangan commit `.env` ke git (sudah di-ignore via `.gitignore`)
 - **CORS**: Configure CORS sesuai kebutuhan di `src/app.ts`
 - **Rate Limiting**: Consider menambahkan rate limiting untuk production

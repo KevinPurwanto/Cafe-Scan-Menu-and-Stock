@@ -17,15 +17,10 @@ const SUPABASE_ANON_KEY = 'sb_publishable_kDbgOxWNjGXJzDT03J4u3w_FDIdZMPk';
 // Jika deploy ke production, ganti dengan URL production:
 // const API_BASE_URL = 'https://api-anda.com';
 
-// API Key untuk admin (harus sama dengan yang di backend .env)
-// PENTING: Jangan share API key ini ke publik!
-const ADMIN_API_KEY = 'Pempek-Yenny';
-
 // Export agar bisa digunakan di file lain
 // Dengan export, variabel ini bisa di-import di file JS lain
 window.API_CONFIG = {
     BASE_URL: API_BASE_URL,
-    ADMIN_API_KEY: ADMIN_API_KEY,
     SUPABASE_URL: SUPABASE_URL,
     SUPABASE_ANON_KEY: SUPABASE_ANON_KEY
 };

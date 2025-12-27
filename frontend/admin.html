@@ -22,29 +22,33 @@
             <div class="text-center mb-6">
                 <div class="text-6xl mb-4">👨‍💼</div>
                 <h2 class="text-3xl font-bold text-gray-800">Admin Login</h2>
-                <p class="text-gray-600 mt-2">Masukkan API Key untuk akses admin</p>
+                <p class="text-gray-600 mt-2">Masukkan username dan password</p>
             </div>
 
             <!-- Login Form -->
             <form onsubmit="login(event)" class="space-y-4">
-                <!-- API Key Input -->
+                <!-- Username Input -->
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">API Key</label>
+                    <label class="block text-gray-700 font-semibold mb-2">Username</label>
                     <input
-                        type="password"
-                        id="api-key-input"
-                        placeholder="Masukkan API key..."
+                        type="text"
+                        id="login-username"
+                        placeholder="contoh: admin"
                         required
                         class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
                 </div>
 
-                <!-- Info tentang API Key -->
-                <div class="bg-blue-50 border-l-4 border-blue-400 p-3 text-sm">
-                    <p class="text-blue-700">
-                        <strong>Hint:</strong> API Key default adalah "Pempek-Yenny"
-                        (sesuai dengan .env backend)
-                    </p>
+                <!-- Password Input -->
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Password</label>
+                    <input
+                        type="password"
+                        id="login-password"
+                        placeholder="Masukkan password..."
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
                 </div>
 
                 <!-- Login Button -->
@@ -53,6 +57,14 @@
                     class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-lg transition-colors"
                 >
                     Login
+                </button>
+
+                <button
+                    type="button"
+                    onclick="openForgotPasswordModal()"
+                    class="w-full text-sm text-indigo-600 hover:text-indigo-800"
+                >
+                    Lupa password?
                 </button>
 
                 <!-- Back to Home Link -->

@@ -2,7 +2,7 @@
 // KITCHEN.JS - Logic untuk halaman dapur
 // ============================================
 
-let kitchenApiKey = null;
+let staffUser = null;
 let orders = [];
 let pollTimer = null;
 let pollIntervalMs = 10000;
@@ -11,45 +11,115 @@ let isFirstLoad = true;
 let audioContext = null;
 
 window.onload = function() {
-    const savedKey = sessionStorage.getItem('kitchenApiKey') || sessionStorage.getItem('adminApiKey');
-    if (savedKey) {
-        kitchenApiKey = savedKey;
-        showDashboard();
-    }
+    checkStaffSession();
 };
+
+async function checkStaffSession() {
+    try {
+        const response = await apiGet('/auth/staff/me');
+        staffUser = response.data;
+        showDashboard();
+    } catch (_error) {
+        // Not logged in yet.
+    }
+}
 
 async function login(event) {
     event.preventDefault();
     initAudio();
 
-    const apiKeyInput = document.getElementById('api-key-input');
-    const enteredApiKey = apiKeyInput.value.trim();
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
 
-    if (!enteredApiKey) {
-        showErrorAlert('API Key tidak boleh kosong');
+    if (!username || !password) {
+        showErrorAlert('Username dan password wajib diisi');
         return;
     }
 
     try {
-        await apiGet('/orders', {
-            'x-api-key': enteredApiKey
+        const response = await apiPost('/auth/staff/login', {
+            username,
+            password
         });
 
-        kitchenApiKey = enteredApiKey;
-        sessionStorage.setItem('kitchenApiKey', enteredApiKey);
+        staffUser = response.data;
 
         showDashboard();
         showSuccess('Login berhasil!');
     } catch (error) {
         console.error('Login error:', error);
-        showErrorAlert('API Key salah atau backend tidak tersedia');
+        showErrorAlert(error.message || 'Login gagal');
+    }
+}
+
+function openKitchenResetModal() {
+    document.getElementById('kitchen-modal-title').textContent = 'Reset Password Dapur';
+    document.getElementById('kitchen-modal-body').innerHTML = `
+        <div class="space-y-4">
+            <p class="text-sm text-gray-600">
+                Link reset akan dikirim ke email reset yang dikonfigurasi.
+            </p>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Username Dapur</label>
+                <input
+                    type="text"
+                    id="kitchen-reset-username"
+                    placeholder="masukkan username"
+                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button
+                    type="button"
+                    onclick="closeKitchenModal()"
+                    class="flex-1 border border-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-50"
+                >
+                    Batal
+                </button>
+                <button
+                    type="button"
+                    onclick="sendKitchenResetEmail()"
+                    class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 rounded-lg"
+                >
+                    Kirim Link
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('kitchen-modal').classList.remove('hidden');
+}
+
+function closeKitchenModal(event) {
+    if (!event || event.target.id === 'kitchen-modal') {
+        document.getElementById('kitchen-modal').classList.add('hidden');
+    }
+}
+
+async function sendKitchenResetEmail() {
+    const usernameInput = document.getElementById('kitchen-reset-username');
+    const username = usernameInput?.value?.trim() || '';
+    if (!username) {
+        showErrorAlert('Username wajib diisi.');
+        return;
+    }
+
+    try {
+        const response = await apiPost('/auth/staff/forgot-password', { username });
+        showSuccess(response.message || 'Jika email terdaftar, link reset akan dikirim.');
+        closeKitchenModal();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal mengirim link reset.');
     }
 }
 
 function logout() {
-    kitchenApiKey = null;
-    sessionStorage.removeItem('kitchenApiKey');
-    sessionStorage.removeItem('adminApiKey');
+    apiPost('/auth/staff/logout', {}).catch(error => {
+        console.error('Logout error:', error);
+    });
+    staffUser = null;
     stopPolling();
 
     document.getElementById('kitchen-dashboard').classList.add('hidden');
@@ -99,7 +169,7 @@ function updatePollLabel() {
 }
 
 async function loadOrders() {
-    if (!kitchenApiKey) return;
+    if (!staffUser) return;
 
     try {
         showLoading('kitchen-orders');
@@ -107,9 +177,7 @@ async function loadOrders() {
         const statusFilter = document.getElementById('order-status-filter')?.value || '';
         const queryString = statusFilter ? `?status=${statusFilter}` : '';
 
-        const response = await apiGet(`/orders${queryString}`, {
-            'x-api-key': kitchenApiKey
-        });
+        const response = await apiGet(`/orders${queryString}`);
 
         const list = response.data || [];
         const detailPromises = list.map(order =>
@@ -263,9 +331,7 @@ async function serveOrder(orderId) {
     }
 
     try {
-        await apiPost(`/orders/${orderId}/serve`, {}, {
-            'x-api-key': kitchenApiKey
-        });
+        await apiPost(`/orders/${orderId}/serve`, {});
         showSuccess('Pesanan ditandai disajikan.');
         await loadOrders();
     } catch (error) {
@@ -275,9 +341,7 @@ async function serveOrder(orderId) {
 
 async function unserveOrder(orderId) {
     try {
-        await apiPost(`/orders/${orderId}/unserve`, {}, {
-            'x-api-key': kitchenApiKey
-        });
+        await apiPost(`/orders/${orderId}/unserve`, {});
         showSuccess('Status sajikan dibatalkan.');
         await loadOrders();
     } catch (error) {

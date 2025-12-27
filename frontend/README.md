@@ -106,9 +106,9 @@ Berarti backend belum running atau ada masalah.
 ### Admin Dashboard ([admin.html](admin.html))
 
 #### Login
-- Login dengan API Key
-- Default API Key: `Pempek-Yenny` (sesuai .env backend)
-- Session persistent (tidak perlu login lagi ketika refresh)
+- Login dengan username + password
+- Session disimpan via cookie HttpOnly
+- Ada tombol "Lupa password" untuk kirim link reset ke email admin
 
 #### Tab 1: Orders
 - List semua orders
@@ -175,7 +175,7 @@ Berarti backend belum running atau ada masalah.
 ### Browser APIs
 - **Fetch API** - untuk HTTP requests ke backend
 - **localStorage** - simpan cart data (persistent)
-- **sessionStorage** - simpan table & admin login (temporary)
+- **sessionStorage** - simpan table (temporary)
 - **Camera API** - via html5-qrcode library
 
 ## 📝 Penjelasan File JavaScript
@@ -184,7 +184,6 @@ Berarti backend belum running atau ada masalah.
 
 File ini berisi:
 - **API_BASE_URL**: URL backend API
-- **ADMIN_API_KEY**: API key untuk admin
 - **Helper Functions:**
   - `apiGet()` - GET request
   - `apiPost()` - POST request
@@ -252,13 +251,13 @@ File ini berisi semua logic untuk customer page:
 File ini berisi semua logic untuk admin dashboard:
 
 **Global Variables:**
-- `adminApiKey` - API key setelah login
+- `adminUser` - Data admin setelah login
 - `orders`, `categories`, `menuItems`, `tables` - Data caching
 - `currentTab` - Tab yang sedang aktif
 
 **Functions:**
 - **Authentication:**
-  - `login()` - Login dengan API key
+  - `login()` - Login dengan username + password
   - `logout()` - Logout admin
   - `showDashboard()` - Show dashboard setelah login
 

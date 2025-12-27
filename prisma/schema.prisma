@@ -88,3 +88,30 @@ model Payment {
 
   @@map("payments")
 }
+
+model AdminUser {
+  id           String   @id @default(uuid())
+  username     String   @unique @db.VarChar(50)
+  email        String   @db.VarChar(255)
+  passwordHash String   @map("password_hash")
+  role         String   @default("admin") @db.VarChar(20)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  resets AdminPasswordReset[]
+
+  @@map("admin_users")
+}
+
+model AdminPasswordReset {
+  id        String   @id @default(uuid())
+  adminId   String   @map("admin_id")
+  tokenHash String   @unique @map("token_hash")
+  expiresAt DateTime @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  admin AdminUser @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@map("admin_password_resets")
+}

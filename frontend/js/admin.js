@@ -6,8 +6,8 @@
 // GLOBAL VARIABLES
 // ========================================
 
-// Simpan API key di memory setelah login
-let adminApiKey = null;
+// Simpan data admin setelah login
+let adminUser = null;
 
 // Simpan data untuk caching
 let orders = [];
@@ -28,14 +28,9 @@ let currentTab = 'orders';
  * Function yang jalan otomatis ketika page load
  */
 window.onload = function() {
-    console.log('🔐 Admin page loaded');
+    console.log('dY"? Admin page loaded');
 
-    // Check apakah admin sudah login sebelumnya (tersimpan di sessionStorage)
-    const savedApiKey = sessionStorage.getItem('adminApiKey');
-    if (savedApiKey) {
-        adminApiKey = savedApiKey;
-        showDashboard();
-    }
+    checkAdminSession();
 
     const periodSelect = document.getElementById('report-period');
     if (periodSelect) {
@@ -43,6 +38,16 @@ window.onload = function() {
         periodSelect.addEventListener('change', renderReportInputs);
     }
 };
+
+async function checkAdminSession() {
+    try {
+        const response = await apiGet('/auth/admin/me');
+        adminUser = response.data;
+        showDashboard();
+    } catch (_error) {
+        // Not logged in yet.
+    }
+}
 
 // ========================================
 // LOGIN & AUTHENTICATION
@@ -56,28 +61,23 @@ async function login(event) {
     // Prevent default form behavior (refresh page)
     event.preventDefault();
 
-    // Ambil API key dari input
-    const apiKeyInput = document.getElementById('api-key-input');
-    const enteredApiKey = apiKeyInput.value.trim();
+    const usernameInput = document.getElementById('login-username');
+    const passwordInput = document.getElementById('login-password');
+    const username = usernameInput.value.trim();
+    const password = passwordInput.value;
 
-    // Validasi: API key tidak boleh kosong
-    if (!enteredApiKey) {
-        showErrorAlert('API Key tidak boleh kosong');
+    if (!username || !password) {
+        showErrorAlert('Username dan password wajib diisi');
         return;
     }
 
     try {
-        // Test API key dengan hit endpoint admin (GET /tables)
-        // Jika API key salah, akan return 401 Unauthorized
-        const response = await apiGet('/tables', {
-            'x-api-key': enteredApiKey
+        const response = await apiPost('/auth/admin/login', {
+            username,
+            password
         });
 
-        // Jika berhasil, simpan API key
-        adminApiKey = enteredApiKey;
-
-        // Simpan ke sessionStorage agar tidak perlu login lagi ketika refresh
-        sessionStorage.setItem('adminApiKey', adminApiKey);
+        adminUser = response.data;
 
         // Show dashboard
         showDashboard();
@@ -87,7 +87,7 @@ async function login(event) {
 
     } catch (error) {
         console.error('Login error:', error);
-        showErrorAlert('API Key salah atau backend tidak tersedia');
+        showErrorAlert(error.message || 'Login gagal');
     }
 }
 
@@ -104,11 +104,14 @@ function logout() {
     });
 }
 
-function performLogout() {
+async function performLogout() {
+    try {
+        await apiPost('/auth/admin/logout', {});
+    } catch (error) {
+        console.error('Logout error:', error);
+    }
 
-    // Clear API key dari memory dan sessionStorage
-    adminApiKey = null;
-    sessionStorage.removeItem('adminApiKey');
+    adminUser = null;
 
     // Hide dashboard, show login screen
     document.getElementById('admin-dashboard').classList.add('hidden');
@@ -199,9 +202,7 @@ async function loadOrders() {
         const queryString = statusFilter ? `?status=${statusFilter}` : '';
 
         // Hit API: GET /orders (dengan auth header)
-        const response = await apiGet(`/orders${queryString}`, {
-            'x-api-key': adminApiKey
-        });
+        const response = await apiGet(`/orders${queryString}`);
 
         orders = response.data;
 
@@ -287,8 +288,63 @@ function renderOrders() {
     });
 }
 
+function openForgotPasswordModal() {
+    document.getElementById('modal-title').textContent = 'Reset Password Admin';
+    document.getElementById('modal-body').innerHTML = `
+        <div class="space-y-4">
+            <p class="text-sm text-gray-600">
+                Link reset akan dikirim ke email reset yang dikonfigurasi.
+            </p>
+            <div>
+                <label class="block text-sm font-semibold text-gray-700 mb-2">Username Admin</label>
+                <input
+                    type="text"
+                    id="reset-username"
+                    placeholder="masukkan username"
+                    class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+            </div>
+            <div class="flex gap-2 pt-2">
+                <button
+                    type="button"
+                    onclick="closeModal()"
+                    class="flex-1 border border-gray-300 text-gray-700 font-semibold py-2 rounded-lg hover:bg-gray-50"
+                >
+                    Batal
+                </button>
+                <button
+                    type="button"
+                    onclick="sendResetEmail()"
+                    class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg"
+                >
+                    Kirim Link
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+async function sendResetEmail() {
+    const usernameInput = document.getElementById('reset-username');
+    const username = usernameInput?.value?.trim() || '';
+    if (!username) {
+        showErrorAlert('Username wajib diisi.');
+        return;
+    }
+
+    try {
+        const response = await apiPost('/auth/admin/forgot-password', { username });
+        showSuccess(response.message || 'Jika email terdaftar, link reset akan dikirim.');
+        closeModal();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal mengirim link reset.');
+    }
+}
+
 async function openOrderModal(orderId) {
-    if (!adminApiKey) {
+    if (!adminUser) {
         showErrorAlert('Silakan login terlebih dahulu.');
         return;
     }
@@ -301,9 +357,7 @@ async function openOrderModal(orderId) {
 
     try {
         await ensureMenuItemsLoaded();
-        const response = await apiGet(`/orders/${orderId}`, {
-            'x-api-key': adminApiKey
-        });
+        const response = await apiGet(`/orders/${orderId}`);
         renderOrderModal(response.data);
     } catch (error) {
         closeModal();
@@ -524,9 +578,7 @@ async function saveOrderItems(orderId) {
             return;
         }
 
-        await apiPatch(`/orders/${orderId}/items`, { items }, {
-            'x-api-key': adminApiKey
-        });
+        await apiPatch(`/orders/${orderId}/items`, { items });
 
         showSuccess('Order berhasil diperbarui.');
         closeModal();
@@ -538,9 +590,7 @@ async function saveOrderItems(orderId) {
 
 async function validateOrderById(orderId) {
     try {
-        await apiPost(`/orders/${orderId}/validate`, {}, {
-            'x-api-key': adminApiKey
-        });
+        await apiPost(`/orders/${orderId}/validate`, {});
 
         showSuccess('Order berhasil divalidasi.');
         closeModal();
@@ -555,9 +605,7 @@ async function markOrderPaid(orderId) {
         const methodSelect = document.getElementById('order-pay-method');
         const method = methodSelect?.value || 'cash';
 
-        await apiPost(`/orders/${orderId}/pay`, { method }, {
-            'x-api-key': adminApiKey
-        });
+        await apiPost(`/orders/${orderId}/pay`, { method });
 
         showSuccess('Pembayaran berhasil dicatat.');
         closeModal();
@@ -666,9 +714,7 @@ async function submitAddCategory(event) {
     const name = document.getElementById('category-name').value.trim();
 
     try {
-        await apiPost('/menu/categories', { name }, {
-            'x-api-key': adminApiKey
-        });
+        await apiPost('/menu/categories', { name });
 
         showSuccess('Kategori berhasil ditambahkan');
         closeModal();
@@ -695,9 +741,7 @@ function deleteCategory(categoryId) {
 async function confirmDeleteCategory(categoryId) {
     try {
         closeModal();
-        await apiDelete(`/menu/categories/${categoryId}`, {
-            'x-api-key': adminApiKey
-        });
+        await apiDelete(`/menu/categories/${categoryId}`);
 
         showSuccess('Kategori berhasil dihapus');
         await loadCategories();
@@ -1083,9 +1127,7 @@ async function submitAddMenuItem(event) {
             imageUrl: imageUrl
         };
 
-        await apiPost('/menu/items', data, {
-            'x-api-key': adminApiKey
-        });
+        await apiPost('/menu/items', data);
 
         showSuccess('Menu item berhasil ditambahkan');
         closeModal();
@@ -1141,9 +1183,7 @@ async function submitEditMenuItem(event, itemId) {
             data.imageUrl = null;
         }
 
-        await apiPatch(`/menu/items/${itemId}`, data, {
-            'x-api-key': adminApiKey
-        });
+        await apiPatch(`/menu/items/${itemId}`, data);
 
         if (newImageUrl && item.imageUrl) {
             await deleteMenuImageByUrl(item.imageUrl);
@@ -1163,9 +1203,7 @@ async function submitEditMenuItem(event, itemId) {
 async function confirmDeleteMenuItem(itemId) {
     try {
         closeModal();
-        await apiDelete(`/menu/items/${itemId}`, {
-            'x-api-key': adminApiKey
-        });
+        await apiDelete(`/menu/items/${itemId}`);
 
         showSuccess('Menu item berhasil diarsipkan');
         await loadMenuItems();
@@ -1285,9 +1323,7 @@ function unarchiveMenuItem(itemId) {
 async function confirmUnarchiveMenuItem(itemId) {
     try {
         closeModal();
-        await apiPatch(`/menu/items/${itemId}`, { isArchived: false, isAvailable: true }, {
-            'x-api-key': adminApiKey
-        });
+        await apiPatch(`/menu/items/${itemId}`, { isArchived: false, isAvailable: true });
 
         showSuccess('Menu item berhasil dipulihkan');
         await loadMenuItems();
@@ -1308,9 +1344,7 @@ async function loadTables() {
     try {
         showLoading('tables-list');
 
-        const response = await apiGet('/tables', {
-            'x-api-key': adminApiKey
-        });
+        const response = await apiGet('/tables');
 
         tables = response.data;
         renderTables();
@@ -1444,9 +1478,7 @@ async function submitAddTable(event) {
     };
 
     try {
-        await apiPost('/tables', data, {
-            'x-api-key': adminApiKey
-        });
+        await apiPost('/tables', data);
 
         showSuccess('Meja berhasil ditambahkan. QR otomatis dibuat.');
         closeModal();
@@ -1539,9 +1571,7 @@ async function submitEditTable(event, tableId) {
     };
 
     try {
-        await apiPatch(`/tables/${tableId}`, data, {
-            'x-api-key': adminApiKey
-        });
+        await apiPatch(`/tables/${tableId}`, data);
 
         showSuccess('Meja berhasil diperbarui');
         closeModal();
@@ -1569,9 +1599,7 @@ function confirmDeleteTable(tableId, tableNumber) {
  */
 async function deleteTable(tableId) {
     try {
-        await apiDelete(`/tables/${tableId}`, {
-            'x-api-key': adminApiKey
-        });
+        await apiDelete(`/tables/${tableId}`);
 
         closeModal();
         showSuccess('Meja berhasil dihapus');
@@ -1595,9 +1623,7 @@ async function loadReport() {
 
         const { endpoint } = buildReportRequest();
 
-        const response = await apiGet(endpoint, {
-            'x-api-key': adminApiKey
-        });
+        const response = await apiGet(endpoint);
 
         if (endpoint.startsWith('/reports/daily')) {
             renderDailyReport(response.data);
@@ -2067,11 +2093,7 @@ async function exportSales() {
 
     try {
         const url = `${API_CONFIG.BASE_URL}/reports/export?${params.toString()}`;
-        const response = await fetch(url, {
-            headers: {
-                'x-api-key': adminApiKey
-            }
-        });
+        const response = await fetch(url);
 
         if (!response.ok) {
             let message = 'Gagal export laporan';
@@ -2142,9 +2164,10 @@ function openConfirmModal({ title, message, confirmText = 'Lanjut', confirmClass
 }
 
 function runConfirmAction() {
-    if (typeof confirmActionCallback === 'function') {
-        const cb = confirmActionCallback;
-        confirmActionCallback = null;
+    const cb = confirmActionCallback;
+    confirmActionCallback = null;
+    closeModal();
+    if (typeof cb === 'function') {
         cb();
     }
 }
@@ -2159,4 +2182,8 @@ function closeModal(event) {
     }
     confirmActionCallback = null;
 }
+
+
+
+
 

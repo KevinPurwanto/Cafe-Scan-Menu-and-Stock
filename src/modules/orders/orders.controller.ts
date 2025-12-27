@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { z } from "zod";
 import { prisma } from "../../db";
 import { HttpError } from "../../utils/errors";
+import { getAdminSession } from "../../utils/adminSession";
 
 // Create new order (customer via QR code)
 const CreateOrderSchema = z.object({
@@ -457,9 +458,8 @@ export async function cancelOrder(req: Request, res: Response) {
   }
 
   if (order.status === "validated") {
-    const key = req.header("x-api-key");
-    if (!process.env.ADMIN_API_KEY) throw new Error("Missing env: ADMIN_API_KEY");
-    if (key !== process.env.ADMIN_API_KEY) throw new HttpError(401, "Unauthorized");
+    const session = getAdminSession(req);
+    if (!session) throw new HttpError(401, "Unauthorized");
 
     const updatedOrder = await prisma.$transaction(async (tx) => {
       for (const item of order.items) {

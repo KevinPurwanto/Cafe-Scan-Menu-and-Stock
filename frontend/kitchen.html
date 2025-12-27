@@ -21,25 +21,30 @@
                 <div class="text-center mb-6">
                     <div class="text-4xl mb-3">Dapur</div>
                     <h2 class="text-2xl font-bold text-gray-800">Login Dapur</h2>
-                    <p class="text-gray-600 mt-2">Masukkan API Key dapur untuk akses</p>
+                    <p class="text-gray-600 mt-2">Masukkan username dan password</p>
                 </div>
 
             <form onsubmit="login(event)" class="space-y-4">
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-2">API Key Dapur</label>
+                    <label class="block text-gray-700 font-semibold mb-2">Username</label>
                     <input
-                        type="password"
-                        id="api-key-input"
-                        placeholder="Masukkan API key..."
+                        type="text"
+                        id="login-username"
+                        placeholder="contoh: kitchen"
                         required
                         class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
                     >
                 </div>
 
-                <div class="bg-orange-50 border-l-4 border-orange-400 p-3 text-sm">
-                    <p class="text-orange-700">
-                        Gunakan API Key dapur (berbeda dari admin).
-                    </p>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-2">Password</label>
+                    <input
+                        type="password"
+                        id="login-password"
+                        placeholder="Masukkan password..."
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    >
                 </div>
 
                 <button
@@ -47,6 +52,14 @@
                     class="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 rounded-lg transition-colors"
                 >
                     Masuk Dapur
+                </button>
+
+                <button
+                    type="button"
+                    onclick="openKitchenResetModal()"
+                    class="w-full text-sm text-orange-600 hover:text-orange-800"
+                >
+                    Lupa password?
                 </button>
 
                 <a
@@ -133,6 +146,30 @@
 
             <div id="kitchen-orders">
                 <p class="text-gray-500 text-center py-8">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================
+         MODAL untuk Reset Password
+         ======================================== -->
+    <div
+        id="kitchen-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+        onclick="closeKitchenModal(event)"
+    >
+        <div class="bg-white rounded-lg shadow-2xl max-w-md w-full p-6" onclick="event.stopPropagation()">
+            <div class="flex justify-between items-center mb-4">
+                <h3 id="kitchen-modal-title" class="text-xl font-bold text-gray-800">Modal Title</h3>
+                <button onclick="closeKitchenModal()" class="text-gray-500 hover:text-gray-700">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div id="kitchen-modal-body">
+                <!-- Content will be injected here -->
             </div>
         </div>
     </div>
