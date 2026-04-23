@@ -1,5 +1,5 @@
-import fs from "node:fs";
-import path from "node:path";
+import fs from "fs";
+import path from "path";
 import { defineConfig } from "prisma/config";
 
 function loadEnvFileIfPresent(envPath: string) {
@@ -30,5 +30,7 @@ if (!process.env.DIRECT_URL && process.env.DATABASE_URL) {
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
-  seed: "tsx prisma/seed.ts"
+  migrations: {
+    seed: "tsx prisma/seed.ts"
+  }
 });
