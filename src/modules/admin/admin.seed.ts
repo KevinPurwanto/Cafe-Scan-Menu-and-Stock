@@ -11,11 +11,9 @@ type SeedUser = {
 async function createUserIfMissing({ username, email, password, role }: SeedUser) {
   if (!username || !email || !password) return;
 
-  const existing = await prisma.adminUser.findFirst({
-    where: {
-      OR: [{ username }, { email: email.toLowerCase() }]
-    }
-  });
+  // Username adalah field yang unik di schema, jadi cukup cek berdasarkan username.
+  // Ini juga menghindari kasus seed kedua (mis. kitchen) ter-skip karena email sama.
+  const existing = await prisma.adminUser.findUnique({ where: { username } });
   if (existing) return;
 
   const passwordHash = await bcrypt.hash(password, 10);
