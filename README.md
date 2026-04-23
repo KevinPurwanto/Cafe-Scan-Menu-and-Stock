@@ -45,6 +45,7 @@ Copy file `.env` dan edit dengan kredensial database Anda:
 ```env
 PORT=3000
 DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
+DIRECT_URL="postgresql://USER:PASSWORD@HOST:5432/postgres?sslmode=require"
 ADMIN_JWT_SECRET="change-me"
 ADMIN_SEED_USERNAME="owner"
 ADMIN_SEED_PASSWORD="change-me"
@@ -72,12 +73,27 @@ KITCHEN_API_KEY="change-me"
 3. Di bagian **Connection string**, pilih **URI**
 4. Copy connection string dan paste ke `.env`
 
+Jika Anda pakai pooler (pgBouncer), set:
+- `DATABASE_URL` = pooler URL (untuk runtime/app)
+- `DIRECT_URL` = direct connection URL (untuk Prisma: `db push`, `migrate`, `studio`, `seed`)
+
+Tips: kalau pakai pooler untuk Prisma Client dan muncul error prepared statement, tambahkan `?pgbouncer=true` di `DATABASE_URL`.
+
 ### 3. Setup Database
 Generate Prisma client dan push schema ke database:
 ```bash
 npm run prisma:generate
 npm run prisma:push
 ```
+
+Opsional (sekali jalan) untuk auto-setup + seed data awal:
+```bash
+npm run db:setup
+```
+Seed akan:
+- Buat user `owner` + `kitchen` (jika env `*_SEED_*` terisi)
+- Buat data meja dari `SEED_TABLE_COUNT` (default di `.env.example`: 10) jika tabel `tables` masih kosong
+- Buat kategori + menu dari `prisma/seed-data.json` jika tabel `menu_categories` masih kosong
 
 ### 4. Run Development Server
 ```bash
@@ -107,6 +123,10 @@ Response:
 - `npm start` - Run production build
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:push` - Push schema changes ke database
+- `npm run prisma:migrate:dev` - Buat & jalankan migration (dev)
+- `npm run prisma:migrate:deploy` - Jalankan migration di server (prod)
+- `npm run prisma:seed` - Insert data awal (lihat `prisma/seed.ts`)
+- `npm run db:setup` - Generate + push schema + seed data awal
 - `npm run prisma:studio` - Buka Prisma Studio (GUI database)
 
 ## Project Structure

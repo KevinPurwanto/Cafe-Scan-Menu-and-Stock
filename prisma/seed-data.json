@@ -1,0 +1,30 @@
+{
+  "tables": {
+    "count": 10
+  },
+  "menuCategories": [
+    {
+      "name": "Makanan",
+      "items": [
+        { "name": "Nasi Goreng", "price": 20000, "stock": 50, "isAvailable": true },
+        { "name": "Mie Goreng", "price": 18000, "stock": 50, "isAvailable": true },
+        { "name": "Ayam Geprek", "price": 22000, "stock": 30, "isAvailable": true }
+      ]
+    },
+    {
+      "name": "Minuman",
+      "items": [
+        { "name": "Es Teh", "price": 5000, "stock": 200, "isAvailable": true },
+        { "name": "Es Jeruk", "price": 7000, "stock": 150, "isAvailable": true },
+        { "name": "Kopi", "price": 8000, "stock": 100, "isAvailable": true }
+      ]
+    },
+    {
+      "name": "Snack",
+      "items": [
+        { "name": "Kentang Goreng", "price": 12000, "stock": 40, "isAvailable": true },
+        { "name": "Sosis Bakar", "price": 10000, "stock": 40, "isAvailable": true }
+      ]
+    }
+  ]
+}
