@@ -11,8 +11,8 @@ const API_BASE_URL = window.location.origin === 'null'
     : window.location.origin;
 
 // Supabase storage config
-const SUPABASE_URL = 'https://imlsynklqghvxezxfcyk.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_kDbgOxWNjGXJzDT03J4u3w_FDIdZMPk';
+const SUPABASE_URL = 'https://prhnuzwlbaprkeywdeze.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_wa2aqVYgwjrevH8OOTMZkg_t602Hqck';
 
 // Jika deploy ke production, ganti dengan URL production:
 // const API_BASE_URL = 'https://api-anda.com';
