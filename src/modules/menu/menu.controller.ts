@@ -3,6 +3,9 @@ import { z } from "zod";
 import { prisma } from "../../db";
 import { HttpError } from "../../utils/errors";
 
+// Threshold stok kritis - peringatan muncul ketika stok <= (LOW_STOCK_THRESHOLD - 1)
+export const LOW_STOCK_THRESHOLD = 10;
+
 // List all categories
 export async function listCategories(_req: Request, res: Response) {
   const data = await prisma.menuCategory.findMany({
@@ -133,6 +136,19 @@ export async function updateItem(req: Request, res: Response) {
     include: { category: true }
   });
   res.json({ success: true, data });
+}
+
+// Get low stock items (stok < LOW_STOCK_THRESHOLD)
+export async function getLowStockItems(_req: Request, res: Response) {
+  const data = await prisma.menuItem.findMany({
+    where: {
+      isArchived: false,
+      stock: { lte: LOW_STOCK_THRESHOLD - 1 }
+    },
+    orderBy: { stock: "asc" },
+    include: { category: true }
+  });
+  res.json({ success: true, data, threshold: LOW_STOCK_THRESHOLD });
 }
 
 // Remove menu item

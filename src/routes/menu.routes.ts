@@ -9,6 +9,9 @@ const r = Router();
 r.get("/categories", asyncHandler(c.listCategories));
 r.get("/items", asyncHandler(c.listItems));
 
+// admin - stok kritis (harus sebelum /items/:id agar tidak konflik)
+r.get("/items/low-stock", adminAuth, asyncHandler(c.getLowStockItems));
+
 // admin - manage categories and items
 r.post("/categories", adminAuth, asyncHandler(c.createCategory));
 r.patch("/categories/:id", adminAuth, asyncHandler(c.updateCategory));

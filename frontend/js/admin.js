@@ -20,6 +20,89 @@ let confirmActionCallback = null;
 // Track current active tab
 let currentTab = 'orders';
 
+// Threshold stok kritis — peringatan muncul saat stok < LOW_STOCK_THRESHOLD
+const LOW_STOCK_THRESHOLD = 10;
+
+// ========================================
+// LOW STOCK WARNING
+// ========================================
+
+/**
+ * Cek item dengan stok kritis dan tampilkan banner di tab Menu.
+ */
+async function checkLowStock() {
+    try {
+        const response = await apiGet('/menu/items/low-stock');
+        const items = response.data || [];
+        const banner = document.getElementById('low-stock-banner');
+        const listEl = document.getElementById('low-stock-list');
+        if (!banner || !listEl) return;
+
+        if (items.length === 0) {
+            banner.classList.add('hidden');
+            return;
+        }
+
+        listEl.innerHTML = items.map(item => {
+            const stockColor = item.stock === 0
+                ? 'text-red-700 font-bold'
+                : 'text-orange-700 font-semibold';
+            const label = item.stock === 0 ? '🔴 HABIS' : `🟡 Sisa: ${item.stock}`;
+            return `<div class="flex justify-between items-center text-xs bg-white rounded px-2 py-1 border border-orange-200">
+                <span class="text-gray-800">${item.name}</span>
+                <span class="${stockColor}">${label}</span>
+            </div>`;
+        }).join('');
+
+        banner.classList.remove('hidden');
+    } catch (_err) {
+        // Gagal cek stok — abaikan, tidak tampilkan banner
+    }
+}
+
+/**
+ * Tutup / sembunyikan banner stok kritis.
+ */
+function dismissLowStockBanner() {
+    const banner = document.getElementById('low-stock-banner');
+    if (banner) banner.classList.add('hidden');
+}
+
+/**
+ * Tampilkan pop-up peringatan stok kritis setelah validasi order.
+ * @param {Array} lowStockItems - Array item {id, name, stock} dengan stok kritis
+ */
+function showLowStockToast(lowStockItems) {
+    if (!lowStockItems || lowStockItems.length === 0) return;
+
+    const names = lowStockItems.map(item => {
+        const label = item.stock === 0 ? 'HABIS' : `sisa ${item.stock}`;
+        return `• ${item.name} (${label})`;
+    }).join('\n');
+
+    const toast = document.createElement('div');
+    toast.className = [
+        'fixed top-4 right-4 z-50 max-w-xs w-full',
+        'bg-orange-500 text-white rounded-xl shadow-2xl p-4',
+        'border border-orange-400'
+    ].join(' ');
+
+    toast.innerHTML = `
+        <div class="flex items-start gap-2">
+            <span class="text-xl leading-none">⚠️</span>
+            <div class="flex-1">
+                <p class="font-bold text-sm mb-1">Stok Hampir Habis!</p>
+                <p class="text-xs leading-relaxed whitespace-pre-line">${names}</p>
+            </div>
+            <button onclick="this.closest('div.fixed').remove()" class="text-orange-200 hover:text-white text-lg leading-none">✕</button>
+        </div>
+    `;
+
+    document.body.appendChild(toast);
+    // Auto-dismiss setelah 8 detik
+    setTimeout(() => toast.remove(), 8000);
+}
+
 // ========================================
 // INITIALIZATION
 // ========================================
@@ -590,7 +673,14 @@ async function saveOrderItems(orderId) {
 
 async function validateOrderById(orderId) {
     try {
-        await apiPost(`/orders/${orderId}/validate`, {});
+        const response = await apiPost(`/orders/${orderId}/validate`, {});
+
+        // Tampilkan notifikasi jika ada item stok kritis setelah validasi
+        if (response.lowStockItems && response.lowStockItems.length > 0) {
+            showLowStockToast(response.lowStockItems);
+            // Refresh banner di tab Menu jika sedang aktif
+            await checkLowStock();
+        }
 
         showSuccess('Order berhasil divalidasi.');
         closeModal();
@@ -760,6 +850,8 @@ async function loadMenuItems() {
         const response = await apiGet('/menu/items?only_available=false&include_archived=true');
         menuItems = response.data;
         renderMenuItems();
+        // Cek stok kritis setiap kali menu di-load
+        await checkLowStock();
     } catch (error) {
         console.error('Error loading menu items:', error);
         document.getElementById('menu-items-list').innerHTML = '<p class="text-red-500 text-sm">Error loading</p>';
@@ -778,15 +870,34 @@ function renderMenuItems() {
     }
 
     const displayItems = [...menuItems].sort((a, b) => {
-        if (a.isArchived === b.isArchived) return 0;
-        return a.isArchived ? 1 : -1;
+        // Archived selalu paling bawah
+        if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1;
+        if (a.isArchived && b.isArchived) return 0;
+
+        const aLow = a.stock < LOW_STOCK_THRESHOLD;
+        const bLow = b.stock < LOW_STOCK_THRESHOLD;
+
+        // Item kritis vs normal: kritis dulu
+        if (aLow !== bLow) return aLow ? -1 : 1;
+
+        // Sama-sama kritis: urut stok paling sedikit dulu (paling darurat di atas)
+        if (aLow && bLow) return a.stock - b.stock;
+
+        // Sama-sama normal: urut nama A–Z
+        return a.name.localeCompare(b.name, 'id');
     });
 
     container.innerHTML = '';
 
     displayItems.forEach(item => {
         const itemDiv = document.createElement('div');
-        itemDiv.className = 'p-3 bg-gray-50 rounded-lg mb-2';
+        const isLowStock = !item.isArchived && item.stock < LOW_STOCK_THRESHOLD;
+        const isOutOfStock = !item.isArchived && item.stock === 0;
+        itemDiv.className = isOutOfStock
+            ? 'p-3 bg-red-50 border border-red-200 rounded-lg mb-2'
+            : isLowStock
+                ? 'p-3 bg-orange-50 border border-orange-200 rounded-lg mb-2'
+                : 'p-3 bg-gray-50 rounded-lg mb-2';
 
         const statusLabel = item.isArchived
             ? '<span class="text-gray-500 text-xs">Archived</span>'
@@ -837,13 +948,67 @@ function renderMenuItems() {
             </div>
             <div class="flex justify-between items-center text-sm">
                 <span class="text-blue-600 font-semibold">${formatRupiah(item.price)}</span>
-                <span class="text-gray-600">Stok: ${item.stock}</span>
+                <span class="${
+                    !item.isArchived && item.stock < LOW_STOCK_THRESHOLD
+                        ? (item.stock === 0 ? 'text-red-600 font-bold' : 'text-orange-500 font-semibold')
+                        : 'text-gray-600'
+                }">
+                    ${
+                        !item.isArchived && item.stock === 0
+                            ? '🔴 Stok: HABIS'
+                            : (!item.isArchived && item.stock < LOW_STOCK_THRESHOLD
+                                ? `⚠️ Stok: ${item.stock}`
+                                : `Stok: ${item.stock}`)
+                    }
+                </span>
                 ${statusLabel}
             </div>
+            ${!item.isArchived && item.stock < LOW_STOCK_THRESHOLD ? `
+            <div class="mt-2 flex items-center gap-1.5 text-xs ${item.stock === 0 ? 'text-red-600' : 'text-orange-500'}">
+                <span>${item.stock === 0 ? '🔴' : '⚠️'}</span>
+                <span><strong>${item.name}</strong> stok ${item.stock === 0 ? 'sudah habis' : 'sudah mau habis'}, tolong restock!</span>
+            </div>` : ''}
         `;
+
 
         container.appendChild(itemDiv);
     });
+}
+
+/**
+ * Filter tampilan menu items berdasarkan nama (live search).
+ * Urutan prioritas stok tetap dipertahankan setelah filter.
+ */
+function filterMenuItems() {
+    const keyword = (document.getElementById('menu-item-search')?.value || '').trim().toLowerCase();
+    const container = document.getElementById('menu-items-list');
+    if (!container) return;
+
+    // Jika kosong, render ulang semua
+    if (!keyword) {
+        renderMenuItems();
+        return;
+    }
+
+    const filtered = menuItems.filter(item =>
+        item.name.toLowerCase().includes(keyword) ||
+        (item.category?.name || '').toLowerCase().includes(keyword)
+    );
+
+    if (filtered.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <p class="text-3xl mb-2">🔍</p>
+                <p class="text-sm">Tidak ada menu dengan nama "<strong>${keyword}</strong>"</p>
+            </div>`;
+        return;
+    }
+
+    // Render hasil filter dengan urutan prioritas stok yang sama
+    const original = menuItems;
+    menuItems = filtered;
+    renderMenuItems();
+    menuItems = original;
 }
 
 function getImageUploadConfig() {

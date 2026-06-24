@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../../db";
 import { HttpError } from "../../utils/errors";
 import { getAdminSession } from "../../utils/adminSession";
+import { LOW_STOCK_THRESHOLD } from "../menu/menu.controller";
 
 // Create new order (customer via QR code)
 const CreateOrderSchema = z.object({
@@ -138,7 +139,17 @@ export async function validateOrder(req: Request, res: Response) {
     });
   });
 
-  res.json({ success: true, data: updatedOrder });
+  // Cek item yang kini stoknya kritis setelah validasi
+  const lowStockItems = await prisma.menuItem.findMany({
+    where: {
+      id: { in: menuIds },
+      isArchived: false,
+      stock: { lte: LOW_STOCK_THRESHOLD - 1 }
+    },
+    select: { id: true, name: true, stock: true }
+  });
+
+  res.json({ success: true, data: updatedOrder, lowStockItems });
 }
 
 // Get order detail
