@@ -3,8 +3,19 @@ import { z } from "zod";
 import { prisma } from "../../db";
 import { HttpError } from "../../utils/errors";
 
-// Threshold stok kritis - peringatan muncul ketika stok <= (LOW_STOCK_THRESHOLD - 1)
+// Fallback threshold stok kritis — dipakai jika item tidak punya threshold sendiri (null)
 export const LOW_STOCK_THRESHOLD = 10;
+
+/**
+ * Hitung threshold efektif untuk satu item:
+ *   null  → pakai LOW_STOCK_THRESHOLD (default 10)
+ *   0     → peringatan dinonaktifkan
+ *   > 0   → pakai nilai item
+ */
+export function getEffectiveThreshold(lowStockThreshold: number | null | undefined): number {
+  if (lowStockThreshold === null || lowStockThreshold === undefined) return LOW_STOCK_THRESHOLD;
+  return lowStockThreshold;
+}
 
 // List all categories
 export async function listCategories(_req: Request, res: Response) {
@@ -86,6 +97,7 @@ const CreateItemSchema = z.object({
   name: z.string().min(2).max(150),
   price: z.number().int().min(0),
   stock: z.number().int().min(0).optional(),
+  lowStockThreshold: z.number().int().min(0).optional(),
   isAvailable: z.boolean().optional(),
   imageUrl: z.string().url().optional()
 });
@@ -114,6 +126,7 @@ const UpdateItemSchema = z.object({
   name: z.string().min(2).max(150).optional(),
   price: z.number().int().min(0).optional(),
   stock: z.number().int().min(0).optional(),
+  lowStockThreshold: z.number().int().min(0).nullable().optional(),
   isAvailable: z.boolean().optional(),
   isArchived: z.boolean().optional(),
   imageUrl: z.string().url().nullable().optional()
@@ -138,16 +151,20 @@ export async function updateItem(req: Request, res: Response) {
   res.json({ success: true, data });
 }
 
-// Get low stock items (stok < LOW_STOCK_THRESHOLD)
+// Get low stock items (filter per-item threshold di aplikasi)
 export async function getLowStockItems(_req: Request, res: Response) {
-  const data = await prisma.menuItem.findMany({
-    where: {
-      isArchived: false,
-      stock: { lte: LOW_STOCK_THRESHOLD - 1 }
-    },
+  const allItems = await prisma.menuItem.findMany({
+    where: { isArchived: false },
     orderBy: { stock: "asc" },
     include: { category: true }
   });
+
+  // Filter: skip item dengan threshold = 0 (peringatan dinonaktifkan)
+  const data = allItems.filter(item => {
+    const threshold = getEffectiveThreshold(item.lowStockThreshold);
+    return threshold > 0 && item.stock < threshold;
+  });
+
   res.json({ success: true, data, threshold: LOW_STOCK_THRESHOLD });
 }
 

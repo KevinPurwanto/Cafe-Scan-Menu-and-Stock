@@ -874,8 +874,10 @@ function renderMenuItems() {
         if (a.isArchived !== b.isArchived) return a.isArchived ? 1 : -1;
         if (a.isArchived && b.isArchived) return 0;
 
-        const aLow = a.stock < LOW_STOCK_THRESHOLD;
-        const bLow = b.stock < LOW_STOCK_THRESHOLD;
+        const aThreshold = a.lowStockThreshold == null ? LOW_STOCK_THRESHOLD : a.lowStockThreshold;
+        const bThreshold = b.lowStockThreshold == null ? LOW_STOCK_THRESHOLD : b.lowStockThreshold;
+        const aLow = aThreshold > 0 && a.stock < aThreshold;
+        const bLow = bThreshold > 0 && b.stock < bThreshold;
 
         // Item kritis vs normal: kritis dulu
         if (aLow !== bLow) return aLow ? -1 : 1;
@@ -891,8 +893,9 @@ function renderMenuItems() {
 
     displayItems.forEach(item => {
         const itemDiv = document.createElement('div');
-        const isLowStock = !item.isArchived && item.stock < LOW_STOCK_THRESHOLD;
-        const isOutOfStock = !item.isArchived && item.stock === 0;
+        const threshold = item.lowStockThreshold == null ? LOW_STOCK_THRESHOLD : item.lowStockThreshold;
+        const isLowStock = !item.isArchived && threshold > 0 && item.stock < threshold;
+        const isOutOfStock = !item.isArchived && item.stock === 0 && threshold > 0;
         itemDiv.className = isOutOfStock
             ? 'p-3 bg-red-50 border border-red-200 rounded-lg mb-2'
             : isLowStock
@@ -938,6 +941,15 @@ function renderMenuItems() {
                 </div>
             `;
 
+        // Badge threshold
+        const thresholdBadge = item.isArchived ? '' : (
+            threshold === 0
+                ? '<span class="text-xs text-gray-400">🔕 No warning</span>'
+                : item.lowStockThreshold == null
+                    ? `<span class="text-xs text-gray-400">Thr: ${LOW_STOCK_THRESHOLD} (default)</span>`
+                    : `<span class="text-xs text-indigo-500 font-medium">Thr: ${threshold}</span>`
+        );
+
         itemDiv.innerHTML = `
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1">
@@ -948,25 +960,28 @@ function renderMenuItems() {
             </div>
             <div class="flex justify-between items-center text-sm">
                 <span class="text-blue-600 font-semibold">${formatRupiah(item.price)}</span>
-                <span class="${
-                    !item.isArchived && item.stock < LOW_STOCK_THRESHOLD
-                        ? (item.stock === 0 ? 'text-red-600 font-bold' : 'text-orange-500 font-semibold')
-                        : 'text-gray-600'
-                }">
-                    ${
-                        !item.isArchived && item.stock === 0
-                            ? '🔴 Stok: HABIS'
-                            : (!item.isArchived && item.stock < LOW_STOCK_THRESHOLD
-                                ? `⚠️ Stok: ${item.stock}`
-                                : `Stok: ${item.stock}`)
-                    }
-                </span>
-                ${statusLabel}
+                <div class="flex items-center gap-3">
+                    <span class="${
+                        isLowStock
+                            ? (isOutOfStock ? 'text-red-600 font-bold' : 'text-orange-500 font-semibold')
+                            : 'text-gray-600'
+                    }">
+                        ${
+                            isOutOfStock
+                                ? '🔴 Stok: HABIS'
+                                : isLowStock
+                                    ? `⚠️ Stok: ${item.stock}`
+                                    : `Stok: ${item.stock}`
+                        }
+                    </span>
+                    ${thresholdBadge}
+                    ${statusLabel}
+                </div>
             </div>
-            ${!item.isArchived && item.stock < LOW_STOCK_THRESHOLD ? `
-            <div class="mt-2 flex items-center gap-1.5 text-xs ${item.stock === 0 ? 'text-red-600' : 'text-orange-500'}">
-                <span>${item.stock === 0 ? '🔴' : '⚠️'}</span>
-                <span><strong>${item.name}</strong> stok ${item.stock === 0 ? 'sudah habis' : 'sudah mau habis'}, tolong restock!</span>
+            ${isLowStock ? `
+            <div class="mt-2 flex items-center gap-1.5 text-xs ${isOutOfStock ? 'text-red-600' : 'text-orange-500'}">
+                <span>${isOutOfStock ? '🔴' : '⚠️'}</span>
+                <span><strong>${item.name}</strong> stok ${isOutOfStock ? 'sudah habis' : 'sudah mau habis'}, tolong restock!</span>
             </div>` : ''}
         `;
 
@@ -1216,7 +1231,7 @@ function showAddItemForm() {
                     ${categoryOptions}
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-3 gap-3">
                 <div>
                     <label class="block text-gray-700 font-semibold mb-1 text-sm">Harga</label>
                     <input
@@ -1238,6 +1253,17 @@ function showAddItemForm() {
                         min="0"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     >
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Threshold</label>
+                    <input
+                        type="number"
+                        id="item-threshold"
+                        placeholder="10"
+                        min="0"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                    <p class="text-xs text-gray-400 mt-1">0 = nonaktif</p>
                 </div>
             </div>
             <div>
@@ -1292,6 +1318,12 @@ async function submitAddMenuItem(event) {
             imageUrl: imageUrl
         };
 
+        // Threshold: kirim jika diisi (termasuk 0), kosong = null = default
+        const thresholdRaw = document.getElementById('item-threshold').value;
+        if (thresholdRaw !== '') {
+            data.lowStockThreshold = parseInt(thresholdRaw, 10);
+        }
+
         await apiPost('/menu/items', data);
 
         showSuccess('Menu item berhasil ditambahkan');
@@ -1341,6 +1373,14 @@ async function submitEditMenuItem(event, itemId) {
             stock: parseInt(document.getElementById('edit-item-stock').value),
             isAvailable: document.getElementById('edit-item-available').checked
         };
+
+        // Threshold: kirim jika diisi (termasuk 0), kosong = null = reset ke default
+        const editThresholdRaw = document.getElementById('edit-item-threshold')?.value;
+        if (editThresholdRaw !== '' && editThresholdRaw != null) {
+            data.lowStockThreshold = parseInt(editThresholdRaw, 10);
+        } else {
+            data.lowStockThreshold = null;
+        }
 
         if (newImageUrl) {
             data.imageUrl = newImageUrl;
@@ -1419,7 +1459,7 @@ function showEditItemForm(itemId) {
                     ${categoryOptions}
                 </select>
             </div>
-            <div class="grid grid-cols-2 gap-3">
+            <div class="grid grid-cols-3 gap-3">
                 <div>
                     <label class="block text-gray-700 font-semibold mb-1 text-sm">Harga</label>
                     <input
@@ -1441,6 +1481,18 @@ function showEditItemForm(itemId) {
                         min="0"
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                     >
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Threshold</label>
+                    <input
+                        type="number"
+                        id="edit-item-threshold"
+                        value="${item.lowStockThreshold ?? ''}"
+                        placeholder="${LOW_STOCK_THRESHOLD}"
+                        min="0"
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                    >
+                    <p class="text-xs text-gray-400 mt-1">Kosong = ${LOW_STOCK_THRESHOLD}, 0 = nonaktif</p>
                 </div>
             </div>
             <div>

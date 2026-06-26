@@ -35,11 +35,12 @@ model MenuItem {
   categoryId  String?  @map("category_id")
   name        String   @db.VarChar(150)
   price       Int
-  stock       Int      @default(0)
-  isAvailable Boolean  @default(true) @map("is_available")
-  isArchived  Boolean  @default(false) @map("is_archived")
-  imageUrl    String?  @map("image_url")
-  createdAt   DateTime @default(now()) @map("created_at")
+  stock              Int      @default(0)
+  lowStockThreshold  Int?     @map("low_stock_threshold")
+  isAvailable        Boolean  @default(true) @map("is_available")
+  isArchived         Boolean  @default(false) @map("is_archived")
+  imageUrl           String?  @map("image_url")
+  createdAt          DateTime @default(now()) @map("created_at")
 
   category MenuCategory? @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
