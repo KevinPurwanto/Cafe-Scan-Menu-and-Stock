@@ -25,6 +25,9 @@ let menuItems = [];
 // Variable untuk menyimpan category yang sedang dipilih (filter)
 let selectedCategory = null;
 
+// Menyimpan sementara percobaan kuantitas berlebih dari menu card sebelum masuk cart
+let attemptedQuantities = {};
+
 // ========================================
 // INITIALIZATION - Jalan otomatis ketika page load
 // ========================================
@@ -549,8 +552,11 @@ function increaseQuantity(itemId, maxStock) {
     // Check apakah sudah mencapai max stock
     if (currentValue < maxStock) {
         input.value = currentValue + 1;
+        delete attemptedQuantities[itemId];
     } else {
         showErrorAlert('Stok tidak mencukupi');
+        // Jika mereka mencoba melebihi stok, set intent kuantitas asli
+        attemptedQuantities[itemId] = maxStock + 1;
     }
 }
 
@@ -565,6 +571,7 @@ function decreaseQuantity(itemId) {
     // Minimum quantity adalah 1
     if (currentValue > 1) {
         input.value = currentValue - 1;
+        delete attemptedQuantities[itemId];
     }
 }
 
@@ -580,22 +587,31 @@ function validateMenuQuantity(itemId, value, maxStock, itemName, itemPrice) {
     const inputEl = document.getElementById('qty-' + itemId);
     if (!inputEl) return;
 
-    const parsed = parseInt(value, 10);
+    let parsed = parseInt(value, 10);
     if (isNaN(parsed) || parsed < 1) {
         inputEl.value = 1;
+        delete attemptedQuantities[itemId];
         showErrorAlert('Jumlah harus berupa angka dan minimal 1');
         return;
+    }
+
+    // Batasi input maksimal ke 1000 porsi per item
+    const MAX_LIMIT = 1000;
+    if (parsed > MAX_LIMIT) {
+        parsed = MAX_LIMIT;
+        showErrorAlert(`Jumlah pesanan dibatasi maksimal ${MAX_LIMIT} porsi per item`);
     }
 
     if (parsed > maxStock) {
         inputEl.value = maxStock;
         showErrorAlert(`Stok tidak mencukupi. Maksimal stok: ${maxStock}`);
-        // Catat potential loss
-        recordPotentialLoss({ id: itemId, name: itemName, price: itemPrice }, parsed, maxStock);
+        // Simpan percobaan kuantitas berlebih (dibatasi maks 100)
+        attemptedQuantities[itemId] = parsed;
         return;
     }
 
     inputEl.value = parsed;
+    delete attemptedQuantities[itemId];
 }
 
 
@@ -612,23 +628,58 @@ function addToCart(item) {
     const qtyInput = document.getElementById(`qty-${item.id}`);
     const quantity = parseInt(qtyInput.value);
 
+    // Ambil attempted quantity jika ada
+    const attempted = attemptedQuantities[item.id];
+    let lostQty = 0;
+    let requestedQty = quantity;
+    let stockAvailable = item.stock;
+
+    if (attempted && attempted > item.stock) {
+        requestedQty = attempted;
+        lostQty = attempted - item.stock;
+        delete attemptedQuantities[item.id];
+    }
+
     // Check apakah item sudah ada di cart
     const existingItemIndex = cart.findIndex(cartItem => cartItem.id === item.id);
+    let itemsAdded = quantity;
+    let exceededStock = false;
 
     if (existingItemIndex > -1) {
         // Jika sudah ada, tambahkan quantity
-        cart[existingItemIndex].quantity += quantity;
+        const oldQty = cart[existingItemIndex].quantity;
+        let newQty = oldQty + quantity;
 
-        // Check apakah total quantity melebihi stock
-        if (cart[existingItemIndex].quantity > item.stock) {
-            showErrorAlert('Stok tidak mencukupi');
-            cart[existingItemIndex].quantity = item.stock;
+        if (newQty > item.stock) {
+            exceededStock = true;
+            newQty = item.stock;
+            itemsAdded = newQty - oldQty;
+            
+            // Hitung loss baru secara kumulatif
+            cart[existingItemIndex].lostQty = (cart[existingItemIndex].lostQty || 0) + (oldQty + requestedQty - item.stock);
+            cart[existingItemIndex].requestedQty = item.stock + cart[existingItemIndex].lostQty;
+            cart[existingItemIndex].stockAvailable = item.stock;
+        } else {
+            // Jika penambahan ini valid (total <= stock) tapi sebelumnya ada lostQty, kurangi atau pertahankan logic loss
+            if (lostQty > 0) {
+                cart[existingItemIndex].lostQty = (cart[existingItemIndex].lostQty || 0) + lostQty;
+                cart[existingItemIndex].requestedQty = (cart[existingItemIndex].requestedQty || newQty) + lostQty;
+                cart[existingItemIndex].stockAvailable = item.stock;
+            }
         }
+        cart[existingItemIndex].quantity = newQty;
     } else {
         // Jika belum ada, tambahkan item baru ke cart
+        if (quantity > item.stock) {
+            exceededStock = true;
+            itemsAdded = item.stock;
+        }
         cart.push({
             ...item,        // Spread operator: copy semua property dari item
-            quantity: quantity
+            quantity: itemsAdded,
+            requestedQty: lostQty > 0 ? requestedQty : undefined,
+            stockAvailable: lostQty > 0 ? stockAvailable : undefined,
+            lostQty: lostQty > 0 ? lostQty : 0
         });
     }
 
@@ -641,8 +692,16 @@ function addToCart(item) {
     // Reset quantity input ke 1
     qtyInput.value = 1;
 
-    // Show success message
-    showSuccess(`${item.name} ditambahkan ke keranjang`);
+    // Tampilkan notifikasi yang sesuai (tidak saling tumpuk)
+    if (exceededStock) {
+        if (itemsAdded === 0) {
+            showErrorAlert(`Batas maksimal stok (${item.stock} porsi) sudah ada di keranjang.`);
+        } else {
+            showErrorAlert(`Stok terbatas! Hanya menambahkan ${itemsAdded} porsi ${item.name} ke keranjang.`);
+        }
+    } else {
+        showSuccess(`${item.name} ditambahkan ke keranjang`);
+    }
 }
 
 /**
@@ -792,7 +851,7 @@ function setCartItemQuantity(itemId, value, maxStock = 999) {
     if (itemIndex === -1) return;
 
     // Validasi: hanya angka
-    const parsed = parseInt(value, 10);
+    let parsed = parseInt(value, 10);
     if (isNaN(parsed) || parsed < 1) {
         // Reset ke nilai sebelumnya
         const inputEl = document.getElementById('qty-input-' + itemId);
@@ -801,16 +860,31 @@ function setCartItemQuantity(itemId, value, maxStock = 999) {
         return;
     }
 
-    if (parsed > maxStock) {
-        const inputEl = document.getElementById('qty-input-' + itemId);
-        if (inputEl) inputEl.value = cart[itemIndex].quantity;
-        showErrorAlert(`Stok tidak mencukupi. Maksimal stok: ${maxStock}`);
-        // Catat potential loss
-        recordPotentialLoss(cart[itemIndex], parsed, maxStock);
-        return;
+    // Batasi input maksimal ke 1000 porsi per item
+    const MAX_LIMIT = 1000;
+    if (parsed > MAX_LIMIT) {
+        parsed = MAX_LIMIT;
+        showErrorAlert(`Jumlah pesanan dibatasi maksimal ${MAX_LIMIT} porsi per item`);
     }
 
-    cart[itemIndex].quantity = parsed;
+    if (parsed > maxStock) {
+        const inputEl = document.getElementById('qty-input-' + itemId);
+        if (inputEl) inputEl.value = maxStock;
+        showErrorAlert(`Stok tidak mencukupi. Maksimal stok: ${maxStock}`);
+        
+        // Simpan info potential loss di item cart
+        cart[itemIndex].quantity = maxStock;
+        cart[itemIndex].requestedQty = parsed;
+        cart[itemIndex].stockAvailable = maxStock;
+        cart[itemIndex].lostQty = parsed - maxStock;
+    } else {
+        cart[itemIndex].quantity = parsed;
+        // Reset info potential loss jika valid
+        cart[itemIndex].requestedQty = undefined;
+        cart[itemIndex].stockAvailable = undefined;
+        cart[itemIndex].lostQty = 0;
+    }
+
     localStorage.setItem('cart', JSON.stringify(cart));
     updateCartUI();
 }
@@ -882,7 +956,7 @@ function confirmPromptQuantity(itemId, maxStock) {
     const overlay = document.getElementById('qty-prompt-overlay');
     if (!input) return;
 
-    const val = parseInt(input.value, 10);
+    let val = parseInt(input.value, 10);
 
     if (isNaN(val) || val < 1) {
         input.style.borderColor = '#ef4444';
@@ -890,23 +964,34 @@ function confirmPromptQuantity(itemId, maxStock) {
         return;
     }
 
+    // Batasi input maksimal ke 1000 porsi per item
+    const MAX_LIMIT = 1000;
+    if (val > MAX_LIMIT) {
+        val = MAX_LIMIT;
+        showErrorAlert(`Jumlah pesanan dibatasi maksimal ${MAX_LIMIT} porsi per item`);
+    }
+
+    const itemIndex = cart.findIndex(item => item.id === itemId);
+    if (itemIndex === -1) return;
+
     if (val > maxStock) {
-        input.style.borderColor = '#ef4444';
-        input.value = '';
-        input.placeholder = `Maksimal ${maxStock}!`;
-        // Catat potential loss
-        const itemIndex2 = cart.findIndex(item => item.id === itemId);
-        if (itemIndex2 !== -1) recordPotentialLoss(cart[itemIndex2], val, maxStock);
-        return;
+        showErrorAlert(`Stok tidak mencukupi. Hanya bisa memesan maksimal ${maxStock}`);
+        // Capped ke maxStock, simpan potential loss info
+        cart[itemIndex].quantity = maxStock;
+        cart[itemIndex].requestedQty = val;
+        cart[itemIndex].stockAvailable = maxStock;
+        cart[itemIndex].lostQty = val - maxStock;
+    } else {
+        cart[itemIndex].quantity = val;
+        // Reset info potential loss jika valid
+        cart[itemIndex].requestedQty = undefined;
+        cart[itemIndex].stockAvailable = undefined;
+        cart[itemIndex].lostQty = 0;
     }
 
     // Tutup overlay
     if (overlay) overlay.remove();
 
-    // Set quantity
-    const itemIndex = cart.findIndex(item => item.id === itemId);
-    if (itemIndex === -1) return;
-    cart[itemIndex].quantity = val;
     localStorage.setItem('cart', JSON.stringify(cart));
     updateCartUI();
 }
@@ -1044,6 +1129,13 @@ async function confirmOrder() {
         const orderResponse = await apiPost('/orders', orderData);
 
         console.log('[OK] Order created:', orderResponse);
+
+        // Kirim potential loss ke server untuk item-item yang memiliki lostQty > 0
+        // Hanya dikirim jika order sudah sukses di checkout (bukan saat main-main input)
+        const itemsWithLoss = cart.filter(item => item.lostQty > 0);
+        for (const item of itemsWithLoss) {
+            recordPotentialLoss(item, item.requestedQty, item.stockAvailable);
+        }
 
         // Clear cart
         cart = [];
