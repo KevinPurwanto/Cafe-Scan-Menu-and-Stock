@@ -110,7 +110,7 @@ function showLowStockToast(lowStockItems) {
 /**
  * Function yang jalan otomatis ketika page load
  */
-window.onload = function() {
+window.onload = function () {
     console.log('dY"? Admin page loaded');
 
     checkAdminSession();
@@ -961,18 +961,16 @@ function renderMenuItems() {
             <div class="flex justify-between items-center text-sm">
                 <span class="text-blue-600 font-semibold">${formatRupiah(item.price)}</span>
                 <div class="flex items-center gap-3">
-                    <span class="${
-                        isLowStock
-                            ? (isOutOfStock ? 'text-red-600 font-bold' : 'text-orange-500 font-semibold')
-                            : 'text-gray-600'
-                    }">
-                        ${
-                            isOutOfStock
-                                ? '🔴 Stok: HABIS'
-                                : isLowStock
-                                    ? `⚠️ Stok: ${item.stock}`
-                                    : `Stok: ${item.stock}`
-                        }
+                    <span class="${isLowStock
+                ? (isOutOfStock ? 'text-red-600 font-bold' : 'text-orange-500 font-semibold')
+                : 'text-gray-600'
+            }">
+                        ${isOutOfStock
+                ? '🔴 Stok: HABIS'
+                : isLowStock
+                    ? `⚠️ Stok: ${item.stock}`
+                    : `Stok: ${item.stock}`
+            }
                     </span>
                     ${thresholdBadge}
                     ${statusLabel}
@@ -1606,14 +1604,14 @@ function renderTables() {
 
             <div class="bg-gray-50 rounded-lg p-3 mb-3 text-center">
                 ${table.qrCode
-                    ? `
+                ? `
                         <img src="${table.qrCode}" alt="QR Meja ${table.tableNumber}" class="mx-auto h-40 w-40 object-contain" />
                         <a href="${table.qrCode}" download="meja-${table.tableNumber}.png" class="text-indigo-600 font-semibold text-sm inline-block mt-2">
                             Download QR
                         </a>
                     `
-                    : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
-                }
+                : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
+            }
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -1744,7 +1742,7 @@ function showEditTableForm(tableId) {
                 </label>
                 <p class="text-xs text-gray-500">QR akan digenerate ulang jika nomor meja diganti.</p>
                 ${table.qrCode
-                    ? `
+            ? `
                         <div class="text-center mt-3">
                             <p class="text-xs text-gray-500 mb-2">Preview QR</p>
                             <img src="${table.qrCode}" alt="QR Meja ${table.tableNumber}" class="mx-auto h-36 w-36 object-contain" />
@@ -1753,8 +1751,8 @@ function showEditTableForm(tableId) {
                             </a>
                         </div>
                     `
-                    : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
-                }
+            : '<p class="text-xs text-gray-500">QR belum tersedia</p>'
+        }
             </div>
             <button
                 type="submit"
@@ -1910,6 +1908,18 @@ function renderDailyReport(data) {
             `).join('') : '<p class="text-gray-500 text-sm">No data</p>'}
         </div>
 
+        <!-- Menu Terjual -->
+        <div class="bg-white border border-indigo-100 rounded-lg p-4 mt-6">
+            <h4 class="font-bold text-gray-800 mb-3">Menu Terjual</h4>
+            ${renderMenuSalesTable(data.menuSales)}
+        </div>
+
+        <!-- Potential Loss -->
+        ${renderPotentialLossSection(data.potentialLoss)}
+
+        <!-- Aggregate Demand -->
+        ${renderAggregateDemandSection(data.aggregateDemand)}
+
         <!-- Orders Detail -->
         <div class="bg-gray-50 rounded-lg p-4 mt-6">
             <h4 class="font-bold text-gray-800 mb-3">Detail Orders</h4>
@@ -1917,6 +1927,172 @@ function renderDailyReport(data) {
         </div>
     `;
     setReportOrders(data.orders || []);
+}
+
+/**
+ * Helper: render section Potential Loss (dipakai di daily & summary)
+ */
+function renderPotentialLossSection(pl) {
+    if (!pl) return '';
+    const totalLostQty = pl.totalLostQty || 0;
+    const totalRevenueLoss = pl.totalRevenueLoss || 0;
+    const records = pl.records || [];
+
+    const tableHtml = records.length === 0
+        ? '<p class="text-gray-500 text-sm mt-3">Tidak ada kejadian potential loss pada periode ini.</p>'
+        : `<div class="overflow-x-auto mt-3">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-red-700 text-white">
+                        <th class="px-3 py-2 text-left rounded-tl-lg">#</th>
+                        <th class="px-3 py-2 text-left">Waktu</th>
+                        <th class="px-3 py-2 text-left">Nama Menu</th>
+                        <th class="px-3 py-2 text-center">Meja</th>
+                        <th class="px-3 py-2 text-center">Diminta</th>
+                        <th class="px-3 py-2 text-center">Stok</th>
+                        <th class="px-3 py-2 text-center">Qty Hilang</th>
+                        <th class="px-3 py-2 text-right rounded-tr-lg">Est. Revenue Hilang</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${records.map((r, i) => `
+                        <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-red-50'} border-b border-gray-100">
+                            <td class="px-3 py-2 text-gray-400">#${i + 1}</td>
+                            <td class="px-3 py-2 text-gray-600 text-xs">${formatDate(r.recordedAt)}</td>
+                            <td class="px-3 py-2 font-semibold text-gray-800">${r.menuName}</td>
+                            <td class="px-3 py-2 text-center">${r.tableNumber ?? '-'}</td>
+                            <td class="px-3 py-2 text-center">${r.requestedQty}</td>
+                            <td class="px-3 py-2 text-center">${r.stockAvailable}</td>
+                            <td class="px-3 py-2 text-center">
+                                <span class="bg-red-100 text-red-800 font-bold text-sm px-2 py-0.5 rounded-full">${r.lostQty}</span>
+                            </td>
+                            <td class="px-3 py-2 text-right font-semibold text-red-700">${formatRupiah(r.lostQty * r.price)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>`;
+
+    return `
+        <div class="bg-white border border-red-200 rounded-lg p-4 mt-6">
+            <h4 class="font-bold text-gray-800 mb-3">Potential Loss</h4>
+            <div class="grid grid-cols-2 gap-3 mb-2">
+                <div class="bg-red-50 rounded-lg p-3">
+                    <p class="text-xs text-red-600 font-semibold mb-1">Total Qty Hilang</p>
+                    <p class="text-2xl font-bold text-red-900">${totalLostQty} item</p>
+                </div>
+                <div class="bg-red-50 rounded-lg p-3">
+                    <p class="text-xs text-red-600 font-semibold mb-1">Est. Revenue Hilang</p>
+                    <p class="text-2xl font-bold text-red-900">${formatRupiah(totalRevenueLoss)}</p>
+                </div>
+            </div>
+            ${tableHtml}
+        </div>
+    `;
+}
+
+/**
+ * Helper: render section Aggregate Demand (gabung supply vs demand per menu)
+ */
+function renderAggregateDemandSection(aggList) {
+    if (!aggList || aggList.length === 0) return '';
+
+    const totalDemand  = aggList.reduce((s, a) => s + a.totalDemand, 0);
+    const totalSold    = aggList.reduce((s, a) => s + a.qtySold, 0);
+    const totalUnmet   = aggList.reduce((s, a) => s + a.lostQty, 0);
+    const totalRevLoss = aggList.reduce((s, a) => s + a.revLoss, 0);
+    const pctOverall   = totalDemand > 0 ? ((totalUnmet / totalDemand) * 100).toFixed(1) : '0';
+
+    return `
+        <div class="bg-white border border-purple-200 rounded-lg p-4 mt-6">
+            <h4 class="font-bold text-gray-800 mb-1">Aggregate Demand</h4>
+            <p class="text-xs text-gray-500 mb-3">Perbandingan total demand (terjual + diblok stok) vs supply aktual per menu</p>
+            <div class="grid grid-cols-3 gap-3 mb-3">
+                <div class="bg-purple-50 rounded-lg p-3">
+                    <p class="text-xs text-purple-600 font-semibold mb-1">Total Demand</p>
+                    <p class="text-2xl font-bold text-purple-900">${totalDemand}</p>
+                </div>
+                <div class="bg-green-50 rounded-lg p-3">
+                    <p class="text-xs text-green-600 font-semibold mb-1">Terpenuhi</p>
+                    <p class="text-2xl font-bold text-green-900">${totalSold}</p>
+                </div>
+                <div class="bg-red-50 rounded-lg p-3">
+                    <p class="text-xs text-red-600 font-semibold mb-1">Tidak Terpenuhi (${pctOverall}%)</p>
+                    <p class="text-2xl font-bold text-red-900">${totalUnmet} — ${formatRupiah(totalRevLoss)}</p>
+                </div>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead>
+                        <tr class="bg-purple-700 text-white">
+                            <th class="px-3 py-2 text-left rounded-tl-lg">#</th>
+                            <th class="px-3 py-2 text-left">Nama Menu</th>
+                            <th class="px-3 py-2 text-center">Terjual</th>
+                            <th class="px-3 py-2 text-center">Diblok</th>
+                            <th class="px-3 py-2 text-center">Total Demand</th>
+                            <th class="px-3 py-2 text-center">% Unmet</th>
+                            <th class="px-3 py-2 text-right rounded-tr-lg">Est. Revenue Hilang</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${aggList.map((a, i) => `
+                            <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-purple-50'} border-b border-gray-100">
+                                <td class="px-3 py-2 text-gray-400">#${i + 1}</td>
+                                <td class="px-3 py-2 font-semibold text-gray-800">${a.menuName}</td>
+                                <td class="px-3 py-2 text-center text-green-700 font-semibold">${a.qtySold}</td>
+                                <td class="px-3 py-2 text-center">
+                                    <span class="bg-red-100 text-red-800 font-bold text-sm px-2 py-0.5 rounded-full">${a.lostQty}</span>
+                                </td>
+                                <td class="px-3 py-2 text-center font-bold">${a.totalDemand}</td>
+                                <td class="px-3 py-2 text-center">
+                                    <span class="${a.pctUnmet > 50 ? 'text-red-700 font-bold' : 'text-gray-600'}">${a.pctUnmet}%</span>
+                                </td>
+                                <td class="px-3 py-2 text-right font-semibold text-red-700">${formatRupiah(a.revLoss)}</td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+}
+
+function renderMenuSalesTable(menuSales) {
+    if (!menuSales || menuSales.length === 0) {
+        return '<p class="text-gray-500 text-sm">Tidak ada data menu</p>';
+    }
+    return `
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="bg-indigo-600 text-white">
+                        <th class="px-3 py-2 text-left rounded-tl-lg">#</th>
+                        <th class="px-3 py-2 text-left">Nama Menu</th>
+                        <th class="px-3 py-2 text-left">Kategori</th>
+                        <th class="px-3 py-2 text-center">Qty Terjual</th>
+                        <th class="px-3 py-2 text-right">Total Revenue</th>
+                        <th class="px-3 py-2 text-right rounded-tr-lg">Avg Harga</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${menuSales.map((m, i) => `
+                        <tr class="${i % 2 === 0 ? 'bg-white' : 'bg-indigo-50'} border-b border-gray-100">
+                            <td class="px-3 py-2 text-gray-400 font-bold">#${i + 1}</td>
+                            <td class="px-3 py-2 font-semibold text-gray-800">${m.name}</td>
+                            <td class="px-3 py-2 text-gray-500">
+                                <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded-full">${m.category}</span>
+                            </td>
+                            <td class="px-3 py-2 text-center">
+                                <span class="bg-indigo-100 text-indigo-800 font-bold text-sm px-2 py-0.5 rounded-full">${m.qty}</span>
+                            </td>
+                            <td class="px-3 py-2 text-right font-semibold text-green-700">${formatRupiah(m.revenue)}</td>
+                            <td class="px-3 py-2 text-right text-gray-600">${formatRupiah(m.avgPrice)}</td>
+                        </tr>
+                    `).join('')}
+                </tbody>
+            </table>
+        </div>
+    `;
 }
 
 /**
@@ -1964,6 +2140,18 @@ function renderSummaryReport(data) {
                 </div>
             `).join('') || '<p class="text-gray-500 text-sm">No data</p>'}
         </div>
+
+        <!-- Menu Terjual -->
+        <div class="bg-white border border-indigo-100 rounded-lg p-4 mb-6">
+            <h4 class="font-bold text-gray-800 mb-3">Menu Terjual</h4>
+            ${renderMenuSalesTable(data.menuSales)}
+        </div>
+
+        <!-- Potential Loss -->
+        ${renderPotentialLossSection(data.potentialLoss)}
+
+        <!-- Aggregate Demand -->
+        ${renderAggregateDemandSection(data.aggregateDemand)}
 
         <!-- Inventory Snapshot -->
         <div class="bg-gray-50 rounded-lg p-4">

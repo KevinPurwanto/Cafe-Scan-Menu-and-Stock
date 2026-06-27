@@ -10,6 +10,7 @@ import menuRoutes from "./routes/menu.routes";
 import ordersRoutes from "./routes/orders.routes";
 import reportsRoutes from "./routes/reports.routes";
 import authRoutes from "./routes/auth.routes";
+import potentialLossRoutes from "./routes/potentialLoss.routes";
 import { seedAdminUser } from "./modules/admin/admin.seed";
 
 export function createApp() {
@@ -33,6 +34,7 @@ export function createApp() {
   app.use("/orders", ordersRoutes);
   app.use("/reports", reportsRoutes);
   app.use("/auth", authRoutes);
+  app.use("/potential-loss", potentialLossRoutes);
 
   seedAdminUser().catch((err) => {
     console.error("Admin seed failed:", err);
