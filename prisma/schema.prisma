@@ -117,3 +117,17 @@ model AdminPasswordReset {
 
   @@map("admin_password_resets")
 }
+
+model PotentialLoss {
+  id             String   @id @default(uuid())
+  menuItemId     String?  @map("menu_item_id")
+  menuName       String   @map("menu_name") @db.VarChar(150)
+  price          Int      @default(0)
+  requestedQty   Int      @map("requested_qty")
+  stockAvailable Int      @map("stock_available")
+  lostQty        Int      @map("lost_qty")
+  tableNumber    Int?     @map("table_number")
+  recordedAt     DateTime @default(now()) @map("recorded_at")
+
+  @@map("potential_losses")
+}

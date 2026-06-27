@@ -1,4 +1,4 @@
-﻿// ============================================
+// ============================================
 // CUSTOMER.JS - Logic untuk halaman customer
 // ============================================
 
@@ -34,7 +34,7 @@ let selectedCategory = null;
  * Ini adalah entry point dari semua logic customer
  */
 window.onload = async function() {
-    console.log('ðŸš€ Customer page loaded');
+    console.log('[INIT] Customer page loaded');
 
     // Auto-load table from URL: /customer?table=5
     const tableFromUrl = getTableNumberFromUrl();
@@ -106,7 +106,7 @@ async function startQrScanner() {
         return;
     }
 
-    console.log('ðŸ“· Starting QR scanner...');
+    console.log('[SCAN] Starting QR scanner...');
 
     html5QrCodeScanner = new Html5Qrcode("qr-reader");
 
@@ -141,7 +141,7 @@ async function startQrScanner() {
  * Function untuk stop QR scanner
  */
 async function stopQrScanner() {
-    console.log('ðŸ›‘ Stopping QR scanner...');
+    console.log('[SCAN] Stopping QR scanner...');
 
     if (html5QrCodeScanner) {
         const instance = html5QrCodeScanner;
@@ -165,7 +165,7 @@ async function stopQrScanner() {
  * @param {object} decodedResult - Object result dari scanner (berisi format, dll)
  */
 async function onScanSuccess(decodedText, decodedResult) {
-    console.log('âœ… QR Code detected:', decodedText);
+    console.log('[OK] QR Code detected:', decodedText);
 
     // Stop scanner
     stopQrScanner();
@@ -339,7 +339,7 @@ function changeTable() {
  */
 async function loadCategories() {
     try {
-        console.log('ðŸ“‚ Loading categories...');
+        console.log('[MENU] Loading categories...');
 
         // Hit API endpoint: GET /menu/categories
         const response = await apiGet('/menu/categories');
@@ -411,7 +411,7 @@ function filterByCategory(categoryId) {
  */
 async function loadMenuItems() {
     try {
-        console.log('ðŸ½ï¸ Loading menu items...');
+        console.log('[MENU] Loading menu items...');
 
         // Hit API endpoint: GET /menu/items?only_available=true
         // Query param only_available=true untuk show hanya yang available
@@ -466,7 +466,7 @@ function renderMenuItems() {
             ? `<img src="${item.imageUrl}" alt="${item.name}" class="h-48 w-full object-cover">`
             : `
                 <div class="h-48 bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center">
-                    <span class="text-6xl">dY???,?</span>
+                    <svg class="w-16 h-16 text-white opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
                 </div>
             `;
 
@@ -660,7 +660,7 @@ function renderCartItems() {
             <div class="flex justify-between items-start mb-2">
                 <div class="flex-1">
                     <h4 class="font-semibold text-gray-800">${item.name}</h4>
-                    <p class="text-sm text-gray-600">${formatRupiah(item.price)} Ã— ${item.quantity}</p>
+                    <p class="text-sm text-gray-600">${formatRupiah(item.price)} &times; ${item.quantity}</p>
                 </div>
                 <!-- Remove button -->
                 <button
@@ -674,20 +674,33 @@ function renderCartItems() {
             </div>
 
             <!-- Quantity controls -->
-            <div class="flex items-center gap-2">
-                <button
-                    onclick="updateCartItemQuantity('${item.id}', ${item.quantity - 1})"
-                    class="bg-gray-200 hover:bg-gray-300 text-gray-800 w-7 h-7 rounded text-sm font-bold"
-                >
-                    -
-                </button>
-                <span class="w-12 text-center font-semibold">${item.quantity}</span>
-                <button
-                    onclick="updateCartItemQuantity('${item.id}', ${item.quantity + 1}, ${item.stock})"
-                    class="bg-gray-200 hover:bg-gray-300 text-gray-800 w-7 h-7 rounded text-sm font-bold"
-                >
-                    +
-                </button>
+            <div class="flex flex-col gap-1">
+                <div class="flex items-center gap-2">
+                    <button
+                        onclick="updateCartItemQuantity('${item.id}', ${item.quantity - 1}, ${item.stock})"
+                        class="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 w-8 h-8 rounded text-base font-bold flex-shrink-0"
+                    >
+                        −
+                    </button>
+                    <input
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
+                        id="qty-input-${item.id}"
+                        value="${item.quantity}"
+                        class="w-14 text-center font-semibold border border-gray-300 rounded px-1 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                        onchange="setCartItemQuantity('${item.id}', this.value, ${item.stock})"
+                        onkeydown="if(event.key==='Enter') this.blur()"
+                    />
+                    <button
+                        onclick="updateCartItemQuantity('${item.id}', ${item.quantity + 1}, ${item.stock})"
+                        class="bg-gray-200 hover:bg-gray-300 active:bg-gray-400 text-gray-800 w-8 h-8 rounded text-base font-bold flex-shrink-0"
+                    >
+                        +
+                    </button>
+                    <span class="text-xs text-gray-400 flex-shrink-0">Stok: ${item.stock ?? '∞'}</span>
+                </div>
             </div>
 
             <!-- Subtotal -->
@@ -701,7 +714,7 @@ function renderCartItems() {
 }
 
 /**
- * Function untuk update quantity item di cart
+ * Function untuk update quantity item di cart (via tombol +/-)
  * @param {string} itemId - ID menu item
  * @param {number} newQuantity - Quantity baru
  * @param {number} maxStock - Maximum stock (optional)
@@ -720,7 +733,8 @@ function updateCartItemQuantity(itemId, newQuantity, maxStock = 999) {
     }
 
     if (newQuantity > maxStock) {
-        showErrorAlert('Stok tidak mencukupi');
+        // Tampilkan prompt untuk input jumlah langsung
+        promptCartQuantity(itemId, maxStock);
         return;
     }
 
@@ -733,6 +747,166 @@ function updateCartItemQuantity(itemId, newQuantity, maxStock = 999) {
     // Update UI
     updateCartUI();
 }
+
+/**
+ * Function untuk set quantity langsung via input field
+ * @param {string} itemId - ID menu item
+ * @param {string|number} value - Nilai dari input
+ * @param {number} maxStock - Maximum stock (optional)
+ */
+function setCartItemQuantity(itemId, value, maxStock = 999) {
+    const itemIndex = cart.findIndex(item => item.id === itemId);
+    if (itemIndex === -1) return;
+
+    // Validasi: hanya angka
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 1) {
+        // Reset ke nilai sebelumnya
+        const inputEl = document.getElementById('qty-input-' + itemId);
+        if (inputEl) inputEl.value = cart[itemIndex].quantity;
+        showErrorAlert('Jumlah harus berupa angka dan minimal 1');
+        return;
+    }
+
+    if (parsed > maxStock) {
+        const inputEl = document.getElementById('qty-input-' + itemId);
+        if (inputEl) inputEl.value = cart[itemIndex].quantity;
+        showErrorAlert(`Stok tidak mencukupi. Maksimal stok: ${maxStock}`);
+        // Catat potential loss
+        recordPotentialLoss(cart[itemIndex], parsed, maxStock);
+        return;
+    }
+
+    cart[itemIndex].quantity = parsed;
+    localStorage.setItem('cart', JSON.stringify(cart));
+    updateCartUI();
+}
+
+/**
+ * Tampilkan prompt dialog untuk input quantity ketika stok tidak mencukupi
+ * @param {string} itemId - ID menu item
+ * @param {number} maxStock - Maximum stock
+ */
+function promptCartQuantity(itemId, maxStock) {
+    const itemIndex = cart.findIndex(item => item.id === itemId);
+    if (itemIndex === -1) return;
+
+    const itemName = cart[itemIndex].name;
+
+    // Buat overlay modal prompt
+    const overlay = document.createElement('div');
+    overlay.id = 'qty-prompt-overlay';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;';
+
+    overlay.innerHTML = `
+        <div style="background:#fff;border-radius:12px;padding:24px;width:100%;max-width:320px;box-shadow:0 10px 40px rgba(0,0,0,0.3);box-sizing:border-box;">
+            <h3 style="margin:0 0 8px;font-size:16px;font-weight:700;color:#1f2937;">Masukkan Jumlah Pesanan</h3>
+            <p style="margin:0 0 16px;font-size:13px;color:#6b7280;">${itemName} — Stok tersedia: <strong>${maxStock}</strong></p>
+            <input
+                id="qty-prompt-input"
+                type="number"
+                min="1"
+                max="${maxStock}"
+                placeholder="Jumlah pesanan..."
+                style="width:100%;box-sizing:border-box;border:1.5px solid #d1d5db;border-radius:8px;padding:10px 12px;font-size:15px;outline:none;margin-bottom:16px;"
+                oninput="this.value=this.value.replace(/[^0-9]/g,'')"
+            />
+            <div style="display:flex;gap:8px;">
+                <button
+                    onclick="document.getElementById('qty-prompt-overlay').remove()"
+                    style="flex:1;padding:10px;border:1.5px solid #d1d5db;border-radius:8px;background:#fff;font-size:14px;cursor:pointer;"
+                >Batal</button>
+                <button
+                    onclick="confirmPromptQuantity('${itemId}', ${maxStock})"
+                    style="flex:1;padding:10px;border:none;border-radius:8px;background:#3b82f6;color:#fff;font-size:14px;font-weight:600;cursor:pointer;"
+                >Konfirmasi</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    // Focus input
+    setTimeout(() => {
+        const inp = document.getElementById('qty-prompt-input');
+        if (inp) inp.focus();
+    }, 50);
+
+    // Enter key untuk konfirmasi
+    overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') confirmPromptQuantity(itemId, maxStock);
+        if (e.key === 'Escape') overlay.remove();
+    });
+}
+
+/**
+ * Konfirmasi input dari prompt quantity
+ * @param {string} itemId - ID menu item
+ * @param {number} maxStock - Maximum stock
+ */
+function confirmPromptQuantity(itemId, maxStock) {
+    const input = document.getElementById('qty-prompt-input');
+    const overlay = document.getElementById('qty-prompt-overlay');
+    if (!input) return;
+
+    const val = parseInt(input.value, 10);
+
+    if (isNaN(val) || val < 1) {
+        input.style.borderColor = '#ef4444';
+        input.placeholder = 'Masukkan angka yang valid!';
+        return;
+    }
+
+    if (val > maxStock) {
+        input.style.borderColor = '#ef4444';
+        input.value = '';
+        input.placeholder = `Maksimal ${maxStock}!`;
+        // Catat potential loss
+        const itemIndex2 = cart.findIndex(item => item.id === itemId);
+        if (itemIndex2 !== -1) recordPotentialLoss(cart[itemIndex2], val, maxStock);
+        return;
+    }
+
+    // Tutup overlay
+    if (overlay) overlay.remove();
+
+    // Set quantity
+    const itemIndex = cart.findIndex(item => item.id === itemId);
+    if (itemIndex === -1) return;
+    cart[itemIndex].quantity = val;
+    localStorage.setItem('cart', JSON.stringify(cart));
+    updateCartUI();
+}
+
+/**
+ * Kirim potential loss ke backend (fire-and-forget, silent)
+ * @param {object} cartItem - Item dari array cart
+ * @param {number} requestedQty - Jumlah yang diminta pelanggan
+ * @param {number} stockAvailable - Stok yang tersedia
+ */
+function recordPotentialLoss(cartItem, requestedQty, stockAvailable) {
+    if (!cartItem || requestedQty <= stockAvailable) return;
+
+    // Ambil nomor meja dengan benar (currentTable adalah objek, bukan angka)
+    const tableNum = currentTable?.tableNumber ?? null;
+
+    // Deduplication sederhana: jangan catat event yang sama (item + qty diminta)
+    // dalam 2 detik — mencegah double-record saat user input berkali-kali
+    const dedupKey = `pl_${cartItem.id}_${requestedQty}`;
+    if (sessionStorage.getItem(dedupKey)) return;
+    sessionStorage.setItem(dedupKey, '1');
+    setTimeout(() => sessionStorage.removeItem(dedupKey), 2000);
+
+    apiPost('/potential-loss', {
+        menuItemId:     cartItem.id   || null,
+        menuName:       cartItem.name || 'Unknown',
+        price:          cartItem.price || 0,
+        requestedQty:   requestedQty,
+        stockAvailable: stockAvailable,
+        tableNumber:    tableNum
+    }).catch(() => { /* silent — jangan ganggu UX pelanggan */ });
+}
+
 
 /**
  * Function untuk remove item dari cart
@@ -831,12 +1005,12 @@ async function confirmOrder() {
             paymentMethod: paymentMethod
         };
 
-        console.log('ðŸ›’ Creating order:', orderData);
+        console.log('[ORDER] Creating order:', orderData);
 
         // Hit API: POST /orders
         const orderResponse = await apiPost('/orders', orderData);
 
-        console.log('âœ… Order created:', orderResponse);
+        console.log('[OK] Order created:', orderResponse);
 
         // Clear cart
         cart = [];

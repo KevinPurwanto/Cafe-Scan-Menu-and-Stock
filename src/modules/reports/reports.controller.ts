@@ -218,6 +218,29 @@ export async function dailyReport(req: Request, res: Response) {
   const ordersLimit = getOrdersLimit(req.query.orders_limit);
   const limitedOrders = sortAndLimitOrders(ordersDetail, ordersLimit);
 
+  // Potential loss pada hari yang sama
+  const dailyPotentialLosses = await prisma.potentialLoss.findMany({
+    where: { recordedAt: { gte: startDate, lte: endDate } },
+    orderBy: { recordedAt: "desc" }
+  });
+  const dailyTotalLostQty     = dailyPotentialLosses.reduce((s, r) => s + r.lostQty, 0);
+  const dailyTotalRevenueLoss = dailyPotentialLosses.reduce((s, r) => s + r.lostQty * r.price, 0);
+
+  // Aggregate demand: gabung penjualan + potential loss per menu
+  const dailyAggMap = new Map<string, { menuName: string; qtySold: number; lostQty: number; revSold: number; revLoss: number }>();
+  for (const [, m] of itemSales) {
+    dailyAggMap.set(m.name, { menuName: m.name, qtySold: m.quantity, lostQty: 0, revSold: m.revenue, revLoss: 0 });
+  }
+  for (const pl of dailyPotentialLosses) {
+    const ex = dailyAggMap.get(pl.menuName);
+    if (ex) { ex.lostQty += pl.lostQty; ex.revLoss += pl.lostQty * pl.price; }
+    else dailyAggMap.set(pl.menuName, { menuName: pl.menuName, qtySold: 0, lostQty: pl.lostQty, revSold: 0, revLoss: pl.lostQty * pl.price });
+  }
+  const dailyAggregate = [...dailyAggMap.values()]
+    .filter(a => a.lostQty > 0)
+    .sort((a, b) => b.lostQty - a.lostQty)
+    .map(a => ({ ...a, totalDemand: a.qtySold + a.lostQty, pctUnmet: a.qtySold + a.lostQty > 0 ? +((a.lostQty / (a.qtySold + a.lostQty)) * 100).toFixed(1) : 0 }));
+
   res.json({
     success: true,
     data: {
@@ -230,6 +253,19 @@ export async function dailyReport(req: Request, res: Response) {
       revenueByMethod,
       revenueByTable,
       topItems,
+      menuSales: Array.from(itemSales.values()).sort((a, b) => b.quantity - a.quantity).map(m => ({
+        name: m.name,
+        category: m.category,
+        qty: m.quantity,
+        revenue: m.revenue,
+        avgPrice: m.quantity > 0 ? Math.round(m.revenue / m.quantity) : 0
+      })),
+      potentialLoss: {
+        totalLostQty: dailyTotalLostQty,
+        totalRevenueLoss: dailyTotalRevenueLoss,
+        records: dailyPotentialLosses
+      },
+      aggregateDemand: dailyAggregate,
       orders: limitedOrders
     }
   });
@@ -319,6 +355,49 @@ export async function summaryReport(req: Request, res: Response) {
   const ordersLimit = getOrdersLimit(req.query.orders_limit);
   const limitedOrders = sortAndLimitOrders(ordersDetail, ordersLimit);
 
+  // Menu sales aggregation (per item)
+  const menuSalesMap2 = new Map<string, { name: string; category: string; qty: number; revenue: number }>();
+  for (const order of orders) {
+    for (const item of order.items) {
+      const menuName = item.menuItem?.name ?? item.menuName ?? "Unknown";
+      const category = item.menuItem?.category?.name ?? "Uncategorized";
+      const key = `${menuName}||${category}`;
+      const existing = menuSalesMap2.get(key);
+      if (existing) {
+        existing.qty += item.quantity;
+        existing.revenue += item.price * item.quantity;
+      } else {
+        menuSalesMap2.set(key, { name: menuName, category, qty: item.quantity, revenue: item.price * item.quantity });
+      }
+    }
+  }
+  const menuSalesList2 = [...menuSalesMap2.values()]
+    .sort((a, b) => b.qty - a.qty)
+    .map(m => ({ ...m, avgPrice: m.qty > 0 ? Math.round(m.revenue / m.qty) : 0 }));
+
+  // Potential loss dalam rentang yang sama
+  const summaryPotentialLosses = await prisma.potentialLoss.findMany({
+    where: { recordedAt: { gte: startDate, lte: endDate } },
+    orderBy: { recordedAt: "desc" }
+  });
+  const summaryTotalLostQty     = summaryPotentialLosses.reduce((s, r) => s + r.lostQty, 0);
+  const summaryTotalRevenueLoss = summaryPotentialLosses.reduce((s, r) => s + r.lostQty * r.price, 0);
+
+  // Aggregate demand: gabung penjualan + potential loss per menu
+  const summaryAggMap = new Map<string, { menuName: string; qtySold: number; lostQty: number; revSold: number; revLoss: number }>();
+  for (const m of menuSalesList2) {
+    summaryAggMap.set(m.name, { menuName: m.name, qtySold: m.qty, lostQty: 0, revSold: m.revenue, revLoss: 0 });
+  }
+  for (const pl of summaryPotentialLosses) {
+    const ex = summaryAggMap.get(pl.menuName);
+    if (ex) { ex.lostQty += pl.lostQty; ex.revLoss += pl.lostQty * pl.price; }
+    else summaryAggMap.set(pl.menuName, { menuName: pl.menuName, qtySold: 0, lostQty: pl.lostQty, revSold: 0, revLoss: pl.lostQty * pl.price });
+  }
+  const summaryAggregate = [...summaryAggMap.values()]
+    .filter(a => a.lostQty > 0)
+    .sort((a, b) => b.lostQty - a.lostQty)
+    .map(a => ({ ...a, totalDemand: a.qtySold + a.lostQty, pctUnmet: a.qtySold + a.lostQty > 0 ? +((a.lostQty / (a.qtySold + a.lostQty)) * 100).toFixed(1) : 0 }));
+
   res.json({
     success: true,
     data: {
@@ -333,6 +412,13 @@ export async function summaryReport(req: Request, res: Response) {
       },
       revenueByMethod,
       revenueByCategory: Object.fromEntries(revenueByCategory),
+      menuSales: menuSalesList2,
+      potentialLoss: {
+        totalLostQty: summaryTotalLostQty,
+        totalRevenueLoss: summaryTotalRevenueLoss,
+        records: summaryPotentialLosses
+      },
+      aggregateDemand: summaryAggregate,
       inventory: {
         totalMenuItems,
         totalCategories,
@@ -372,14 +458,40 @@ export async function exportSales(req: Request, res: Response) {
   const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
   const fileBase = `sales-${period}-${label}`.replace(/[^a-zA-Z0-9-_\\.]/g, "_");
 
+  // Ambil potential loss dalam rentang yang sama
+  const potentialLosses = await prisma.potentialLoss.findMany({
+    where: { recordedAt: { gte: startDate, lte: endDate } },
+    orderBy: { recordedAt: "desc" }
+  });
+  const totalLostQty      = potentialLosses.reduce((s, r) => s + r.lostQty, 0);
+  const totalRevenueLoss  = potentialLosses.reduce((s, r) => s + r.lostQty * r.price, 0);
+
   if (format === "csv") {
     const csvEscape = (value: unknown) => {
       const str = String(value ?? "");
-      if (/[",\n]/.test(str)) {
+      if (/["\,\n]/.test(str)) {
         return `"${str.replace(/"/g, '""')}"`;
       }
       return str;
     };
+
+    // Agregasi menu terjual
+    const menuSalesMap = new Map<string, { name: string; category: string; qty: number; revenue: number }>();
+    orders.forEach(order => {
+      order.items.forEach(item => {
+        const menuName = item.menuItem?.name ?? item.menuName ?? "Unknown";
+        const category = item.menuItem?.category?.name ?? "-";
+        const key = `${menuName}||${category}`;
+        const existing = menuSalesMap.get(key);
+        if (existing) {
+          existing.qty += item.quantity;
+          existing.revenue += item.price * item.quantity;
+        } else {
+          menuSalesMap.set(key, { name: menuName, category, qty: item.quantity, revenue: item.price * item.quantity });
+        }
+      });
+    });
+    const menuSalesList = [...menuSalesMap.values()].sort((a, b) => b.qty - a.qty);
 
     const lines: string[] = [];
     lines.push("Key,Value");
@@ -396,6 +508,39 @@ export async function exportSales(req: Request, res: Response) {
       lines.push(`${csvEscape(method)},${csvEscape(amount)}`);
     });
     lines.push("");
+    lines.push("--- MENU TERJUAL ---");
+    lines.push("No,Nama Menu,Kategori,Qty Terjual,Total Revenue,Rata-rata Harga");
+    menuSalesList.forEach((m, idx) => {
+      const avgPrice = m.qty > 0 ? Math.round(m.revenue / m.qty) : 0;
+      lines.push([
+        csvEscape(idx + 1),
+        csvEscape(m.name),
+        csvEscape(m.category),
+        csvEscape(m.qty),
+        csvEscape(m.revenue),
+        csvEscape(avgPrice)
+      ].join(","));
+    });
+    lines.push("");
+    lines.push("--- POTENTIAL LOSS ---");
+    lines.push(`Total Qty Hilang,${csvEscape(totalLostQty)}`);
+    lines.push(`Estimasi Revenue Hilang,${csvEscape(totalRevenueLoss)}`);
+    lines.push("");
+    lines.push("No,Waktu,Nama Menu,Meja,Diminta,Stok,Qty Hilang,Est. Revenue Hilang");
+    potentialLosses.forEach((pl, idx) => {
+      lines.push([
+        csvEscape(idx + 1),
+        csvEscape(pl.recordedAt.toISOString()),
+        csvEscape(pl.menuName),
+        csvEscape(pl.tableNumber ?? "-"),
+        csvEscape(pl.requestedQty),
+        csvEscape(pl.stockAvailable),
+        csvEscape(pl.lostQty),
+        csvEscape(pl.lostQty * pl.price)
+      ].join(","));
+    });
+    lines.push("");
+    lines.push("--- DETAIL ORDER ---");
     lines.push("No,Order ID,Paid At,Table,Payment,Total,Items");
 
     orders.forEach((order, idx) => {
@@ -426,34 +571,166 @@ export async function exportSales(req: Request, res: Response) {
   workbook.creator = "Cafe Backend";
   workbook.created = new Date();
 
+  // helper: thin border untuk satu cell
+  const thinBorder: Partial<ExcelJS.Borders> = {
+    top:    { style: "thin", color: { argb: "FFD1D5DB" } },
+    left:   { style: "thin", color: { argb: "FFD1D5DB" } },
+    bottom: { style: "thin", color: { argb: "FFD1D5DB" } },
+    right:  { style: "thin", color: { argb: "FFD1D5DB" } }
+  };
+  const applyRowBorder = (row: ExcelJS.Row, colCount: number) => {
+    for (let c = 1; c <= colCount; c++) {
+      row.getCell(c).border = thinBorder;
+    }
+  };
+  const rupiahFmt = '"Rp "#,##0';
+
+  // ── Sheet 1: Summary ──────────────────────────────────────────
   const summarySheet = workbook.addWorksheet("Summary");
   summarySheet.columns = [
-    { header: "Key", key: "key", width: 25 },
-    { header: "Value", key: "value", width: 30 }
+    { key: "key",   width: 30 },
+    { key: "value", width: 32 }
   ];
-  summarySheet.addRow({ key: "Period", value: period });
-  summarySheet.addRow({ key: "Label", value: label });
-  summarySheet.addRow({ key: "Start Date", value: startDate.toISOString() });
-  summarySheet.addRow({ key: "End Date", value: endDate.toISOString() });
-  summarySheet.addRow({ key: "Total Orders", value: totalOrders });
-  summarySheet.addRow({ key: "Total Revenue", value: totalRevenue });
-  summarySheet.addRow({ key: "Average Order Value", value: avgOrderValue });
-  summarySheet.addRow({});
-  summarySheet.addRow({ key: "Revenue by Payment Method" });
+
+  // Judul besar
+  summarySheet.mergeCells("A1:B1");
+  const titleCell = summarySheet.getCell("A1");
+  titleCell.value = `📊 Sales Report — ${label}`;
+  titleCell.font  = { bold: true, size: 14, color: { argb: "FFFFFFFF" } };
+  titleCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E40AF" } };
+  titleCell.alignment = { horizontal: "center", vertical: "middle" };
+  summarySheet.getRow(1).height = 32;
+
+  // Sub-judul periode
+  summarySheet.mergeCells("A2:B2");
+  const subCell = summarySheet.getCell("A2");
+  subCell.value = `${startDate.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })} s/d ${endDate.toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}`;
+  subCell.font  = { italic: true, size: 10, color: { argb: "FF6B7280" } };
+  subCell.fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FFEFF6FF" } };
+  subCell.alignment = { horizontal: "center" };
+  summarySheet.addRow([]);
+
+  // Helper: section header
+  const addSectionHeader = (sheet: ExcelJS.Worksheet, label: string) => {
+    sheet.mergeCells(`A${sheet.rowCount + 1}:B${sheet.rowCount + 1}`);
+    const r = sheet.lastRow!;
+    r.getCell(1).value = label;
+    r.getCell(1).font  = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+    r.getCell(1).fill  = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+    r.height = 22;
+  };
+
+  // Helper: data row dengan border + optional format
+  const addSummaryRow = (
+    sheet: ExcelJS.Worksheet,
+    key: string,
+    value: string | number,
+    isHighlight = false,
+    numFmt?: string
+  ) => {
+    const r = sheet.addRow({ key, value });
+    r.getCell(1).font = { bold: isHighlight, color: { argb: "FF374151" } };
+    r.getCell(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: isHighlight ? "FFDBEAFE" : "FFFFFFFF" } };
+    r.getCell(2).font = { bold: isHighlight, color: { argb: isHighlight ? "FF1E40AF" : "FF111827" } };
+    r.getCell(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: isHighlight ? "FFDBEAFE" : "FFFFFFFF" } };
+    if (numFmt) r.getCell(2).numFmt = numFmt;
+    applyRowBorder(r, 2);
+  };
+
+  addSectionHeader(summarySheet, "Informasi Periode");
+  addSummaryRow(summarySheet, "Periode", period);
+  addSummaryRow(summarySheet, "Label", label);
+  addSummaryRow(summarySheet, "Tanggal Mulai", startDate.toISOString());
+  addSummaryRow(summarySheet, "Tanggal Selesai", endDate.toISOString());
+
+  summarySheet.addRow([]);
+
+  addSectionHeader(summarySheet, "Ringkasan Penjualan");
+  addSummaryRow(summarySheet, "Total Pesanan", totalOrders, true);
+  addSummaryRow(summarySheet, "Total Revenue", totalRevenue, true, rupiahFmt);
+  addSummaryRow(summarySheet, "Rata-rata Nilai Order", avgOrderValue, false, rupiahFmt);
+
+  summarySheet.addRow([]);
+
+  addSectionHeader(summarySheet, "Revenue per Metode Bayar");
   Object.entries(revenueByMethod).forEach(([method, amount]) => {
-    summarySheet.addRow({ key: method, value: amount });
+    addSummaryRow(summarySheet, method, amount, false, rupiahFmt);
   });
 
+  summarySheet.views = [{ state: "frozen", ySplit: 3 }];
+
+  // ── Sheet 2: Menu Sales (Agregasi per menu) ───────────────────
+  const menuSalesMap = new Map<string, { name: string; category: string; qty: number; revenue: number }>();
+  orders.forEach(order => {
+    order.items.forEach(item => {
+      const menuName = item.menuItem?.name ?? item.menuName ?? "Unknown";
+      const category = item.menuItem?.category?.name ?? "-";
+      const key = `${menuName}||${category}`;
+      const existing = menuSalesMap.get(key);
+      if (existing) {
+        existing.qty += item.quantity;
+        existing.revenue += item.price * item.quantity;
+      } else {
+        menuSalesMap.set(key, { name: menuName, category, qty: item.quantity, revenue: item.price * item.quantity });
+      }
+    });
+  });
+  const menuSalesList = [...menuSalesMap.values()].sort((a, b) => b.qty - a.qty);
+
+  const menuSheet = workbook.addWorksheet("Menu Sales");
+  menuSheet.columns = [
+    { header: "No",                   key: "no",       width: 6  },
+    { header: "Nama Menu",            key: "name",     width: 28 },
+    { header: "Kategori",             key: "category", width: 18 },
+    { header: "Qty Terjual",          key: "qty",      width: 14 },
+    { header: "Total Revenue (Rp)",   key: "revenue",  width: 22 },
+    { header: "Rata-rata Harga (Rp)", key: "avgPrice", width: 24 }
+  ];
+  const menuHeader = menuSheet.getRow(1);
+  menuHeader.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF2563EB" } };
+  menuHeader.font = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+  menuHeader.height = 24;
+  applyRowBorder(menuHeader, 6);
+
+  menuSalesList.forEach((m, idx) => {
+    const avgPrice = m.qty > 0 ? Math.round(m.revenue / m.qty) : 0;
+    const row = menuSheet.addRow({
+      no: idx + 1,
+      name: m.name,
+      category: m.category,
+      qty: m.qty,
+      revenue: m.revenue,
+      avgPrice
+    });
+    row.getCell("revenue").numFmt  = rupiahFmt;
+    row.getCell("avgPrice").numFmt = rupiahFmt;
+    row.getCell("qty").alignment   = { horizontal: "center" };
+    row.getCell("no").alignment    = { horizontal: "center" };
+    const bg = idx % 2 === 1 ? "FFF0F4FF" : "FFFFFFFF";
+    for (let c = 1; c <= 6; c++) {
+      row.getCell(c).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      row.getCell(c).border = thinBorder;
+    }
+  });
+
+  menuSheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  // ── Sheet 3: Orders (Detail) ──────────────────────────────────
   const ordersSheet = workbook.addWorksheet("Orders");
   ordersSheet.columns = [
-    { header: "No", key: "no", width: 6 },
-    { header: "Order ID", key: "orderId", width: 16 },
-    { header: "Paid At", key: "paidAt", width: 22 },
-    { header: "Table", key: "table", width: 10 },
-    { header: "Payment", key: "payment", width: 12 },
-    { header: "Total", key: "total", width: 12 },
-    { header: "Items", key: "items", width: 50 }
+    { header: "No",         key: "no",       width: 6  },
+    { header: "Order ID",   key: "orderId",  width: 20 },
+    { header: "Paid At",    key: "paidAt",   width: 22 },
+    { header: "Meja",       key: "table",    width: 10 },
+    { header: "Pembayaran", key: "payment",  width: 14 },
+    { header: "Total (Rp)", key: "total",    width: 18 },
+    { header: "Item Pesanan", key: "items",  width: 55 }
   ];
+  const ordersHeader = ordersSheet.getRow(1);
+  ordersHeader.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF065F46" } };
+  ordersHeader.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+  ordersHeader.height = 24;
+  applyRowBorder(ordersHeader, 7);
 
   orders.forEach((order, idx) => {
     const paidAt = order.payments?.[0]?.paidAt ?? order.createdAt;
@@ -461,19 +738,222 @@ export async function exportSales(req: Request, res: Response) {
       .map(i => `${i.quantity}x ${(i.menuItem?.name ?? i.menuName ?? "Unknown")} (${i.price})`)
       .join("; ");
 
-    ordersSheet.addRow({
-      no: idx + 1,
+    const row = ordersSheet.addRow({
+      no:      idx + 1,
       orderId: order.id,
-      paidAt: paidAt.toISOString(),
-      table: order.table?.tableNumber ?? "-",
+      paidAt:  paidAt.toISOString(),
+      table:   order.table?.tableNumber ?? "-",
       payment: order.paymentMethod ?? "-",
-      total: order.totalPrice,
-      items: itemsText
+      total:   order.totalPrice,
+      items:   itemsText
     });
+
+    row.getCell("total").numFmt   = rupiahFmt;
+    row.getCell("no").alignment   = { horizontal: "center" };
+    row.getCell("table").alignment = { horizontal: "center" };
+
+    const bg = idx % 2 === 1 ? "FFF0FDF4" : "FFFFFFFF";
+    for (let c = 1; c <= 7; c++) {
+      row.getCell(c).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      row.getCell(c).border = thinBorder;
+    }
   });
+
+  ordersSheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  // ── Sheet 4: Potential Loss ───────────────────────────────────
+  const plSheet = workbook.addWorksheet("Potential Loss");
+  plSheet.columns = [
+    { header: "No",                      key: "no",          width: 6  },
+    { header: "Waktu",                   key: "recordedAt",  width: 22 },
+    { header: "Nama Menu",               key: "menuName",    width: 28 },
+    { header: "Meja",                    key: "tableNum",    width: 10 },
+    { header: "Qty Diminta",             key: "requested",   width: 14 },
+    { header: "Stok Tersedia",           key: "stock",       width: 14 },
+    { header: "Qty Hilang",              key: "lost",        width: 14 },
+    { header: "Est. Revenue Hilang (Rp)",key: "revLoss",     width: 26 }
+  ];
+  const plHeader = plSheet.getRow(1);
+  plHeader.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FFB91C1C" } };
+  plHeader.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+  plHeader.height = 24;
+  applyRowBorder(plHeader, 8);
+
+  potentialLosses.forEach((pl, idx) => {
+    const row = plSheet.addRow({
+      no:         idx + 1,
+      recordedAt: pl.recordedAt.toISOString(),
+      menuName:   pl.menuName,
+      tableNum:   pl.tableNumber ?? "-",
+      requested:  pl.requestedQty,
+      stock:      pl.stockAvailable,
+      lost:       pl.lostQty,
+      revLoss:    pl.lostQty * pl.price
+    });
+    row.getCell("revLoss").numFmt  = rupiahFmt;
+    row.getCell("no").alignment    = { horizontal: "center" };
+    row.getCell("tableNum").alignment = { horizontal: "center" };
+    row.getCell("requested").alignment = { horizontal: "center" };
+    row.getCell("stock").alignment  = { horizontal: "center" };
+    row.getCell("lost").alignment   = { horizontal: "center" };
+    const bg = idx % 2 === 1 ? "FFFFF1F2" : "FFFFFFFF";
+    for (let c = 1; c <= 8; c++) {
+      row.getCell(c).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      row.getCell(c).border = thinBorder;
+    }
+  });
+
+  // Baris total potential loss
+  plSheet.addRow([]);
+  const plTotalRow = plSheet.addRow({
+    no:       "",
+    recordedAt: "TOTAL",
+    menuName:  "",
+    tableNum:  "",
+    requested: "",
+    stock:     "",
+    lost:      totalLostQty,
+    revLoss:   totalRevenueLoss
+  });
+  plTotalRow.getCell(2).font = { bold: true };
+  plTotalRow.getCell(7).font = { bold: true };
+  plTotalRow.getCell(8).font = { bold: true };
+  plTotalRow.getCell(8).numFmt = rupiahFmt;
+  plTotalRow.getCell(7).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFECACA" } };
+  plTotalRow.getCell(8).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFECACA" } };
+
+  plSheet.views = [{ state: "frozen", ySplit: 1 }];
+
+  // ── Sheet 5: Aggregate Demand Loss ───────────────────────────────────────
+  // Gabungkan: qty terjual (OrderItem) + qty diblok (PotentialLoss) per menu item
+  // → hasilkan: total demand, unmet demand, estimated revenue loss
+  const aggMap = new Map<string, {
+    menuName: string;
+    qtySold:  number;
+    lostQty:  number;
+    revSold:  number;
+    revLoss:  number;
+  }>();
+
+  // Isi dari penjualan aktual
+  for (const order of orders) {
+    for (const item of order.items) {
+      const key = item.menuItem?.name ?? item.menuName ?? "Unknown";
+      const existing = aggMap.get(key);
+      if (existing) {
+        existing.qtySold += item.quantity;
+        existing.revSold += item.price * item.quantity;
+      } else {
+        aggMap.set(key, { menuName: key, qtySold: item.quantity, lostQty: 0, revSold: item.price * item.quantity, revLoss: 0 });
+      }
+    }
+  }
+
+  // Tambahkan data potential loss (mungkin ada menu yang 100% diblok, belum pernah terjual)
+  for (const pl of potentialLosses) {
+    const key = pl.menuName;
+    const existing = aggMap.get(key);
+    if (existing) {
+      existing.lostQty += pl.lostQty;
+      existing.revLoss += pl.lostQty * pl.price;
+    } else {
+      aggMap.set(key, { menuName: key, qtySold: 0, lostQty: pl.lostQty, revSold: 0, revLoss: pl.lostQty * pl.price });
+    }
+  }
+
+  // Sort: unmet demand terbesar dahulu
+  const aggList = [...aggMap.values()]
+    .filter(a => a.lostQty > 0) // hanya tampilkan yang ada unmet demand
+    .sort((a, b) => b.lostQty - a.qtySold - (a.lostQty - a.qtySold));
+
+  const aggSheet = workbook.addWorksheet("Aggregate Demand");
+  aggSheet.columns = [
+    { header: "No",                         key: "no",          width: 6  },
+    { header: "Nama Menu",                  key: "menuName",    width: 28 },
+    { header: "Qty Terjual",                key: "qtySold",     width: 14 },
+    { header: "Qty Diblok (Unmet)",         key: "lostQty",     width: 18 },
+    { header: "Total Demand",               key: "totalDemand", width: 14 },
+    { header: "Revenue Terjual (Rp)",       key: "revSold",     width: 24 },
+    { header: "Est. Revenue Hilang (Rp)",   key: "revLoss",     width: 26 },
+    { header: "% Demand Tidak Terpenuhi",   key: "pctUnmet",    width: 26 }
+  ];
+
+  const aggHeader = aggSheet.getRow(1);
+  aggHeader.fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FF7C3AED" } };
+  aggHeader.font   = { bold: true, color: { argb: "FFFFFFFF" }, size: 11 };
+  aggHeader.height = 24;
+  applyRowBorder(aggHeader, 8);
+
+  let aggTotalSold = 0, aggTotalLost = 0, aggTotalRevSold = 0, aggTotalRevLoss = 0;
+
+  aggList.forEach((a, idx) => {
+    const totalDemand = a.qtySold + a.lostQty;
+    const pctUnmet    = totalDemand > 0 ? ((a.lostQty / totalDemand) * 100).toFixed(1) + "%" : "0%";
+    aggTotalSold    += a.qtySold;
+    aggTotalLost    += a.lostQty;
+    aggTotalRevSold += a.revSold;
+    aggTotalRevLoss += a.revLoss;
+
+    const row = aggSheet.addRow({
+      no:          idx + 1,
+      menuName:    a.menuName,
+      qtySold:     a.qtySold,
+      lostQty:     a.lostQty,
+      totalDemand,
+      revSold:     a.revSold,
+      revLoss:     a.revLoss,
+      pctUnmet
+    });
+    row.getCell("revSold").numFmt   = rupiahFmt;
+    row.getCell("revLoss").numFmt   = rupiahFmt;
+    row.getCell("no").alignment     = { horizontal: "center" };
+    row.getCell("qtySold").alignment     = { horizontal: "center" };
+    row.getCell("lostQty").alignment     = { horizontal: "center" };
+    row.getCell("totalDemand").alignment = { horizontal: "center" };
+    row.getCell("pctUnmet").alignment    = { horizontal: "center" };
+    const bg = idx % 2 === 1 ? "FFEDE9FE" : "FFFFFFFF";
+    for (let c = 1; c <= 8; c++) {
+      row.getCell(c).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: bg } };
+      row.getCell(c).border = thinBorder;
+    }
+    // Highlight baris dengan unmet demand > 50%
+    if (a.lostQty > a.qtySold) {
+      row.getCell("pctUnmet").font = { bold: true, color: { argb: "FFB91C1C" } };
+    }
+  });
+
+  // Baris total
+  aggSheet.addRow([]);
+  const aggTotalRow = aggSheet.addRow({
+    no:          "",
+    menuName:    "TOTAL",
+    qtySold:     aggTotalSold,
+    lostQty:     aggTotalLost,
+    totalDemand: aggTotalSold + aggTotalLost,
+    revSold:     aggTotalRevSold,
+    revLoss:     aggTotalRevLoss,
+    pctUnmet:    (aggTotalSold + aggTotalLost) > 0
+      ? (((aggTotalLost / (aggTotalSold + aggTotalLost)) * 100).toFixed(1) + "%")
+      : "0%"
+  });
+  [2,3,4,5,6,7,8].forEach(c => {
+    aggTotalRow.getCell(c).font   = { bold: true };
+    aggTotalRow.getCell(c).fill   = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDDD6FE" } };
+    aggTotalRow.getCell(c).border = thinBorder;
+  });
+  aggTotalRow.getCell("revSold").numFmt = rupiahFmt;
+  aggTotalRow.getCell("revLoss").numFmt = rupiahFmt;
+
+  if (aggList.length === 0) {
+    aggSheet.addRow([]);
+    aggSheet.addRow({ no: "", menuName: "Tidak ada unmet demand pada periode ini.", qtySold: "", lostQty: "", totalDemand: "", revSold: "", revLoss: "", pctUnmet: "" });
+  }
+
+  aggSheet.views = [{ state: "frozen", ySplit: 1 }];
 
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
   res.setHeader("Content-Disposition", `attachment; filename="${fileBase}.xlsx"`);
   await workbook.xlsx.write(res);
   res.end();
 }
+
