@@ -503,13 +503,15 @@ function renderMenuItems() {
 
                     <!-- Quantity Display -->
                     <input
-                        type="number"
+                        type="text"
+                        inputmode="numeric"
+                        pattern="[0-9]*"
                         id="qty-${item.id}"
                         value="1"
-                        min="1"
-                        max="${item.stock}"
-                        class="w-16 text-center border border-gray-300 rounded-lg py-1"
-                        readonly
+                        class="w-16 text-center border border-gray-300 rounded-lg py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                        oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                        onchange="validateMenuQuantity('${item.id}', this.value, ${item.stock}, '${item.name.replace(/'/g, "\\'")}', ${item.price})"
+                        onkeydown="if(event.key==='Enter') this.blur()"
                     >
 
                     <!-- Plus Button -->
@@ -565,6 +567,37 @@ function decreaseQuantity(itemId) {
         input.value = currentValue - 1;
     }
 }
+
+/**
+ * Function untuk validasi kuantitas yang diinput langsung di list menu utama
+ * @param {string} itemId - ID menu item
+ * @param {string|number} value - Nilai dari input
+ * @param {number} maxStock - Maximum stock
+ * @param {string} itemName - Nama menu item
+ * @param {number} itemPrice - Harga menu item
+ */
+function validateMenuQuantity(itemId, value, maxStock, itemName, itemPrice) {
+    const inputEl = document.getElementById('qty-' + itemId);
+    if (!inputEl) return;
+
+    const parsed = parseInt(value, 10);
+    if (isNaN(parsed) || parsed < 1) {
+        inputEl.value = 1;
+        showErrorAlert('Jumlah harus berupa angka dan minimal 1');
+        return;
+    }
+
+    if (parsed > maxStock) {
+        inputEl.value = maxStock;
+        showErrorAlert(`Stok tidak mencukupi. Maksimal stok: ${maxStock}`);
+        // Catat potential loss
+        recordPotentialLoss({ id: itemId, name: itemName, price: itemPrice }, parsed, maxStock);
+        return;
+    }
+
+    inputEl.value = parsed;
+}
+
 
 // ========================================
 // CART FUNCTIONS
