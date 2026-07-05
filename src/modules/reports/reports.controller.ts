@@ -218,7 +218,7 @@ export async function dailyReport(req: Request, res: Response) {
   const ordersLimit = getOrdersLimit(req.query.orders_limit);
   const limitedOrders = sortAndLimitOrders(ordersDetail, ordersLimit);
 
-  // Potential loss pada hari yang sama
+  // Lost sales pada hari yang sama
   const dailyPotentialLosses = await prisma.potentialLoss.findMany({
     where: { recordedAt: { gte: startDate, lte: endDate } },
     orderBy: { recordedAt: "desc" }
@@ -226,7 +226,7 @@ export async function dailyReport(req: Request, res: Response) {
   const dailyTotalLostQty     = dailyPotentialLosses.reduce((s, r) => s + r.lostQty, 0);
   const dailyTotalRevenueLoss = dailyPotentialLosses.reduce((s, r) => s + r.lostQty * r.price, 0);
 
-  // Aggregate demand: gabung penjualan + potential loss per menu
+  // Aggregate demand: gabung penjualan + lost sales per menu
   const dailyAggMap = new Map<string, { menuName: string; qtySold: number; lostQty: number; revSold: number; revLoss: number }>();
   for (const [, m] of itemSales) {
     dailyAggMap.set(m.name, { menuName: m.name, qtySold: m.quantity, lostQty: 0, revSold: m.revenue, revLoss: 0 });
@@ -375,7 +375,7 @@ export async function summaryReport(req: Request, res: Response) {
     .sort((a, b) => b.qty - a.qty)
     .map(m => ({ ...m, avgPrice: m.qty > 0 ? Math.round(m.revenue / m.qty) : 0 }));
 
-  // Potential loss dalam rentang yang sama
+  // Lost sales dalam rentang yang sama
   const summaryPotentialLosses = await prisma.potentialLoss.findMany({
     where: { recordedAt: { gte: startDate, lte: endDate } },
     orderBy: { recordedAt: "desc" }
@@ -383,7 +383,7 @@ export async function summaryReport(req: Request, res: Response) {
   const summaryTotalLostQty     = summaryPotentialLosses.reduce((s, r) => s + r.lostQty, 0);
   const summaryTotalRevenueLoss = summaryPotentialLosses.reduce((s, r) => s + r.lostQty * r.price, 0);
 
-  // Aggregate demand: gabung penjualan + potential loss per menu
+  // Aggregate demand: gabung penjualan + lost sales per menu
   const summaryAggMap = new Map<string, { menuName: string; qtySold: number; lostQty: number; revSold: number; revLoss: number }>();
   for (const m of menuSalesList2) {
     summaryAggMap.set(m.name, { menuName: m.name, qtySold: m.qty, lostQty: 0, revSold: m.revenue, revLoss: 0 });
@@ -458,7 +458,7 @@ export async function exportSales(req: Request, res: Response) {
   const avgOrderValue = totalOrders > 0 ? Math.round(totalRevenue / totalOrders) : 0;
   const fileBase = `sales-${period}-${label}`.replace(/[^a-zA-Z0-9-_\\.]/g, "_");
 
-  // Ambil potential loss dalam rentang yang sama
+  // Ambil lost sales dalam rentang yang sama
   const potentialLosses = await prisma.potentialLoss.findMany({
     where: { recordedAt: { gte: startDate, lte: endDate } },
     orderBy: { recordedAt: "desc" }
@@ -522,7 +522,7 @@ export async function exportSales(req: Request, res: Response) {
       ].join(","));
     });
     lines.push("");
-    lines.push("--- POTENTIAL LOSS ---");
+    lines.push("--- LOST SALES ---");
     lines.push(`Total Qty Hilang,${csvEscape(totalLostQty)}`);
     lines.push(`Estimasi Revenue Hilang,${csvEscape(totalRevenueLoss)}`);
     lines.push("");
@@ -761,8 +761,8 @@ export async function exportSales(req: Request, res: Response) {
 
   ordersSheet.views = [{ state: "frozen", ySplit: 1 }];
 
-  // ── Sheet 4: Potential Loss ───────────────────────────────────
-  const plSheet = workbook.addWorksheet("Potential Loss");
+  // ── Sheet 4: Lost Sales ───────────────────────────────────
+  const plSheet = workbook.addWorksheet("Lost Sales");
   plSheet.columns = [
     { header: "No",                      key: "no",          width: 6  },
     { header: "Waktu",                   key: "recordedAt",  width: 22 },
@@ -803,7 +803,7 @@ export async function exportSales(req: Request, res: Response) {
     }
   });
 
-  // Baris total potential loss
+  // Baris total lost sales
   plSheet.addRow([]);
   const plTotalRow = plSheet.addRow({
     no:       "",
@@ -849,7 +849,7 @@ export async function exportSales(req: Request, res: Response) {
     }
   }
 
-  // Tambahkan data potential loss (mungkin ada menu yang 100% diblok, belum pernah terjual)
+  // Tambahkan data lost sales (mungkin ada menu yang 100% diblok, belum pernah terjual)
   for (const pl of potentialLosses) {
     const key = pl.menuName;
     const existing = aggMap.get(key);

@@ -1914,7 +1914,7 @@ function renderDailyReport(data) {
             ${renderMenuSalesTable(data.menuSales)}
         </div>
 
-        <!-- Potential Loss -->
+        <!-- Lost Sales -->
         ${renderPotentialLossSection(data.potentialLoss)}
 
         <!-- Aggregate Demand -->
@@ -1930,7 +1930,7 @@ function renderDailyReport(data) {
 }
 
 /**
- * Helper: render section Potential Loss (dipakai di daily & summary)
+ * Helper: render section Lost Sales (dipakai di daily & summary)
  */
 function renderPotentialLossSection(pl) {
     if (!pl) return '';
@@ -1939,7 +1939,7 @@ function renderPotentialLossSection(pl) {
     const records = pl.records || [];
 
     const tableHtml = records.length === 0
-        ? '<p class="text-gray-500 text-sm mt-3">Tidak ada kejadian potential loss pada periode ini.</p>'
+        ? '<p class="text-gray-500 text-sm mt-3">Tidak ada kejadian lost sales pada periode ini.</p>'
         : `<div class="overflow-x-auto mt-3">
             <table class="w-full text-sm">
                 <thead>
@@ -1975,7 +1975,7 @@ function renderPotentialLossSection(pl) {
 
     return `
         <div class="bg-white border border-red-200 rounded-lg p-4 mt-6">
-            <h4 class="font-bold text-gray-800 mb-3">Potential Loss</h4>
+            <h4 class="font-bold text-gray-800 mb-3">Lost Sales</h4>
             <div class="grid grid-cols-2 gap-3 mb-2">
                 <div class="bg-red-50 rounded-lg p-3">
                     <p class="text-xs text-red-600 font-semibold mb-1">Total Qty Hilang</p>
@@ -2147,7 +2147,7 @@ function renderSummaryReport(data) {
             ${renderMenuSalesTable(data.menuSales)}
         </div>
 
-        <!-- Potential Loss -->
+        <!-- Lost Sales -->
         ${renderPotentialLossSection(data.potentialLoss)}
 
         <!-- Aggregate Demand -->

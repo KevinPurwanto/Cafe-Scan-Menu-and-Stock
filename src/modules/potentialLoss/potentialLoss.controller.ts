@@ -1,4 +1,4 @@
-﻿import { Request, Response } from "express";
+import { Request, Response } from "express";
 import { prisma } from "../../db";
 import { HttpError } from "../../utils/errors";
 
@@ -20,7 +20,7 @@ export async function recordPotentialLoss(req: Request, res: Response) {
     throw new HttpError(400, "stockAvailable must be a non-negative number");
   }
   if (requestedQty <= stockAvailable) {
-    throw new HttpError(400, "requestedQty must exceed stockAvailable to record a potential loss");
+    throw new HttpError(400, "requestedQty must exceed stockAvailable to record a lost sale");
   }
 
   const lostQty = requestedQty - stockAvailable;
@@ -38,12 +38,12 @@ export async function recordPotentialLoss(req: Request, res: Response) {
     }
   });
 
-  res.status(201).json({ success: true, message: "Potential loss recorded", lostQty });
+  res.status(201).json({ success: true, message: "Lost sales recorded", lostQty });
 }
 
 /**
  * GET /potential-loss
- * Admin endpoint — ambil semua potential loss dalam rentang waktu tertentu.
+ * Admin endpoint — ambil semua lost sales dalam rentang waktu tertentu.
  * Query: ?start=YYYY-MM-DD&end=YYYY-MM-DD
  */
 export async function getPotentialLosses(req: Request, res: Response) {
