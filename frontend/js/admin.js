@@ -1997,11 +1997,11 @@ function renderPotentialLossSection(pl) {
 function renderAggregateDemandSection(aggList) {
     if (!aggList || aggList.length === 0) return '';
 
-    const totalDemand  = aggList.reduce((s, a) => s + a.totalDemand, 0);
-    const totalSold    = aggList.reduce((s, a) => s + a.qtySold, 0);
-    const totalUnmet   = aggList.reduce((s, a) => s + a.lostQty, 0);
+    const totalDemand = aggList.reduce((s, a) => s + a.totalDemand, 0);
+    const totalSold = aggList.reduce((s, a) => s + a.qtySold, 0);
+    const totalUnmet = aggList.reduce((s, a) => s + a.lostQty, 0);
     const totalRevLoss = aggList.reduce((s, a) => s + a.revLoss, 0);
-    const pctOverall   = totalDemand > 0 ? ((totalUnmet / totalDemand) * 100).toFixed(1) : '0';
+    const pctOverall = totalDemand > 0 ? ((totalUnmet / totalDemand) * 100).toFixed(1) : '0';
 
     return `
         <div class="bg-white border border-purple-200 rounded-lg p-4 mt-6">
@@ -2587,8 +2587,3 @@ function closeModal(event) {
     }
     confirmActionCallback = null;
 }
-
-
-
-
-
