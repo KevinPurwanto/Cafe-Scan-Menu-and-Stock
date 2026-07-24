@@ -11,6 +11,7 @@ import ordersRoutes from "./routes/orders.routes";
 import reportsRoutes from "./routes/reports.routes";
 import authRoutes from "./routes/auth.routes";
 import potentialLossRoutes from "./routes/potentialLoss.routes";
+import productionRoutes from "./routes/production.routes";
 import { seedAdminUser } from "./modules/admin/admin.seed";
 
 export function createApp() {
@@ -35,6 +36,7 @@ export function createApp() {
   app.use("/reports", reportsRoutes);
   app.use("/auth", authRoutes);
   app.use("/potential-loss", potentialLossRoutes);
+  app.use("/production", productionRoutes);
 
   seedAdminUser().catch((err) => {
     console.error("Admin seed failed:", err);

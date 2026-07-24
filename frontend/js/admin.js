@@ -14,6 +14,7 @@ let orders = [];
 let categories = [];
 let menuItems = [];
 let tables = [];
+let productionPlans = [];
 let reportOrdersCache = [];
 let confirmActionCallback = null;
 
@@ -246,8 +247,10 @@ async function showTab(tabName) {
     });
 
     // Set active state untuk tab yang dipilih
-    event.target.classList.remove('text-gray-600', 'border-transparent');
-    event.target.classList.add('text-indigo-600', 'border-indigo-600');
+    if (window.event && window.event.target && window.event.target.classList) {
+        window.event.target.classList.remove('text-gray-600', 'border-transparent');
+        window.event.target.classList.add('text-indigo-600', 'border-indigo-600');
+    }
 
     // Load data sesuai tab
     switch (tabName) {
@@ -263,6 +266,9 @@ async function showTab(tabName) {
             break;
         case 'reports':
             // Report load on-demand ketika user click button
+            break;
+        case 'production':
+            await loadProductionPlans();
             break;
     }
 }
@@ -2586,4 +2592,377 @@ function closeModal(event) {
         document.getElementById('modal').classList.add('hidden');
     }
     confirmActionCallback = null;
+}
+
+// ========================================
+// PRODUCTION TAB FUNCTIONS
+// ========================================
+
+/**
+ * Load production plans from the API
+ */
+async function loadProductionPlans() {
+    try {
+        showLoading('production-list');
+
+        // Make sure menuItems cache is populated for dropdowns
+        await ensureMenuItemsLoaded();
+
+        const response = await apiGet('/production');
+        productionPlans = response.data || [];
+        renderProductionPlans();
+    } catch (error) {
+        console.error('Error loading production plans:', error);
+        showError('production-list', error.message || 'Gagal memuat rencana produksi');
+    }
+}
+
+/**
+ * Render production plans table
+ */
+function renderProductionPlans() {
+    const container = document.getElementById('production-list');
+    if (!container) return;
+
+    if (productionPlans.length === 0) {
+        container.innerHTML = '<p class="text-gray-500 text-center py-8">Tidak ada rencana produksi</p>';
+        return;
+    }
+
+    const rows = productionPlans.map(plan => {
+        const dateObj = new Date(plan.date);
+        // Format e.g., "1 Juni 2026"
+        const formattedDate = dateObj.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+        });
+
+        const productName = plan.menuItem ? plan.menuItem.name : 'Produk Tidak Dikenal';
+        const qtyText = `${plan.quantity} pcs`;
+        const batchText = plan.batch;
+
+        // Status badge styling
+        let statusBadgeClass = 'bg-yellow-100 text-yellow-800';
+        if (plan.status === 'Sedang diproduksi') {
+            statusBadgeClass = 'bg-blue-100 text-blue-800';
+        } else if (plan.status === 'Selesai') {
+            statusBadgeClass = 'bg-green-100 text-green-800';
+        }
+
+        // Actions
+        let actionHtml = '';
+        if (plan.status === 'Selesai') {
+            // Immutable row
+            actionHtml = `<span class="text-gray-400 text-sm italic font-semibold">🔒 Final</span>`;
+        } else {
+            // Non-final can be edited (date and status) or deleted
+            actionHtml = `
+                <div class="flex gap-2">
+                    <button
+                        onclick="showEditProductionForm('${plan.id}')"
+                        class="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 text-xs px-3 py-1.5 rounded font-semibold transition-colors"
+                    >
+                        Edit
+                    </button>
+                    <button
+                        onclick="deleteProductionPlan('${plan.id}')"
+                        class="bg-red-100 hover:bg-red-200 text-red-700 text-xs px-3 py-1.5 rounded font-semibold transition-colors"
+                    >
+                        Hapus
+                    </button>
+                </div>
+            `;
+        }
+
+        return `
+            <tr class="border-b border-gray-100 hover:bg-gray-50/50 transition-colors">
+                <td class="py-3 px-4 text-sm text-gray-700">${formattedDate}</td>
+                <td class="py-3 px-4 text-sm font-semibold text-gray-800">${productName}</td>
+                <td class="py-3 px-4 text-sm text-gray-700">${qtyText}</td>
+                <td class="py-3 px-4 text-sm text-gray-700">${batchText}</td>
+                <td class="py-3 px-4">
+                    <span class="px-2.5 py-1 rounded-full text-xs font-semibold inline-block ${statusBadgeClass}">
+                        ${plan.status}
+                    </span>
+                </td>
+                <td class="py-3 px-4 text-sm">${actionHtml}</td>
+            </tr>
+        `;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+            <table class="min-w-full text-left text-sm whitespace-nowrap">
+                <thead class="bg-gray-50 border-b border-gray-200">
+                    <tr class="text-xs uppercase text-gray-500 font-bold tracking-wider">
+                        <th class="py-3 px-4">Tanggal</th>
+                        <th class="py-3 px-4">Produk</th>
+                        <th class="py-3 px-4">Rencana Produksi</th>
+                        <th class="py-3 px-4">Batch</th>
+                        <th class="py-3 px-4">Status</th>
+                        <th class="py-3 px-4">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    ${rows}
+                </tbody>
+            </table>
+        </div>
+    `;
+}
+
+/**
+ * Show Add Production form in the modal
+ */
+function showAddProductionForm() {
+    document.getElementById('modal-title').textContent = 'Tambah Rencana Produksi';
+
+    // Populate products dropdown
+    const productOptions = menuItems
+        .filter(item => !item.isArchived)
+        .map(item => `<option value="${item.id}">${item.name}</option>`)
+        .join('');
+
+    const today = new Date().toISOString().split('T')[0];
+
+    document.getElementById('modal-body').innerHTML = `
+        <form onsubmit="submitAddProduction(event)" class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Tanggal Produksi</label>
+                <input
+                    type="date"
+                    id="prod-date"
+                    value="${today}"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Produk (Menu)</label>
+                <select
+                    id="prod-menuitem"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="">Pilih Produk...</option>
+                    ${productOptions}
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Rencana Produksi (pcs)</label>
+                    <input
+                        type="number"
+                        id="prod-quantity"
+                        min="1"
+                        placeholder="70"
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Batch</label>
+                    <input
+                        type="text"
+                        id="prod-batch"
+                        value="1 batch"
+                        placeholder="1 batch"
+                        required
+                        class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                </div>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Status Awal</label>
+                <select
+                    id="prod-status"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="Belum diproduksi" selected>Belum diproduksi</option>
+                    <option value="Sedang diproduksi">Sedang diproduksi</option>
+                    <option value="Selesai">Selesai (Langsung Tambah Stok)</option>
+                </select>
+            </div>
+            <button
+                type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm transition-colors mt-2"
+            >
+                Simpan Rencana
+            </button>
+        </form>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+/**
+ * Handle submit for Add Production
+ */
+async function submitAddProduction(event) {
+    event.preventDefault();
+
+    const dateVal = document.getElementById('prod-date').value;
+    const menuItemId = document.getElementById('prod-menuitem').value;
+    const quantity = parseInt(document.getElementById('prod-quantity').value, 10);
+    const batch = document.getElementById('prod-batch').value.trim();
+    const status = document.getElementById('prod-status').value;
+
+    if (!menuItemId) {
+        showErrorAlert('Pilih produk terlebih dahulu.');
+        return;
+    }
+
+    if (isNaN(quantity) || quantity <= 0) {
+        showErrorAlert('Kuantitas produksi harus berupa angka positif.');
+        return;
+    }
+
+    if (!batch) {
+        showErrorAlert('Batch harus diisi.');
+        return;
+    }
+
+    try {
+        await apiPost('/production', {
+            date: dateVal,
+            menuItemId,
+            quantity,
+            batch,
+            status
+        });
+
+        showSuccess('Rencana produksi berhasil dibuat.');
+        closeModal();
+        await loadProductionPlans();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal menambahkan rencana produksi.');
+    }
+}
+
+/**
+ * Show Edit Production form in the modal
+ */
+function showEditProductionForm(id) {
+    const plan = productionPlans.find(p => p.id === id);
+    if (!plan) {
+        showErrorAlert('Rencana produksi tidak ditemukan.');
+        return;
+    }
+
+    document.getElementById('modal-title').textContent = 'Edit Rencana Produksi';
+
+    const dateVal = plan.date.split('T')[0];
+    const productName = plan.menuItem ? plan.menuItem.name : 'Produk Tidak Dikenal';
+
+    document.getElementById('modal-body').innerHTML = `
+        <form onsubmit="submitEditProduction(event, '${id}')" class="space-y-4">
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Tanggal Produksi</label>
+                <input
+                    type="date"
+                    id="edit-prod-date"
+                    value="${dateVal}"
+                    required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Produk (Tidak bisa diedit)</label>
+                <input
+                    type="text"
+                    value="${productName}"
+                    disabled
+                    class="w-full border border-gray-200 bg-gray-50 text-gray-500 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
+                >
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Rencana Produksi (Tidak bisa diedit)</label>
+                    <input
+                        type="text"
+                        value="${plan.quantity} pcs"
+                        disabled
+                        class="w-full border border-gray-200 bg-gray-50 text-gray-500 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
+                    >
+                </div>
+                <div>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Batch (Tidak bisa diedit)</label>
+                    <input
+                        type="text"
+                        value="${plan.batch}"
+                        disabled
+                        class="w-full border border-gray-200 bg-gray-50 text-gray-500 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
+                    >
+                </div>
+            </div>
+            <div>
+                <label class="block text-gray-700 font-semibold mb-1 text-sm">Status Produksi</label>
+                <select
+                    id="edit-prod-status"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                    <option value="Belum diproduksi" ${plan.status === 'Belum diproduksi' ? 'selected' : ''}>Belum diproduksi</option>
+                    <option value="Sedang diproduksi" ${plan.status === 'Sedang diproduksi' ? 'selected' : ''}>Sedang diproduksi</option>
+                    <option value="Selesai">Selesai (Peringatan: status Selesai bersifat final dan akan menambah stok menu)</option>
+                </select>
+            </div>
+            <button
+                type="submit"
+                class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg text-sm transition-colors mt-2"
+            >
+                Simpan Perubahan
+            </button>
+        </form>
+    `;
+
+    document.getElementById('modal').classList.remove('hidden');
+}
+
+/**
+ * Handle submit for Edit Production
+ */
+async function submitEditProduction(event, id) {
+    event.preventDefault();
+
+    const dateVal = document.getElementById('edit-prod-date').value;
+    const status = document.getElementById('edit-prod-status').value;
+
+    try {
+        await apiPatch(`/production/${id}`, {
+            date: dateVal,
+            status
+        });
+
+        showSuccess('Rencana produksi berhasil diperbarui.');
+        closeModal();
+        await loadProductionPlans();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal mengubah rencana produksi.');
+    }
+}
+
+/**
+ * Trigger confirmation and delete a production plan
+ */
+function deleteProductionPlan(id) {
+    openConfirmModal({
+        title: 'Hapus Rencana Produksi',
+        message: 'Apakah Anda yakin ingin menghapus rencana produksi ini? Tindakan ini tidak dapat dibatalkan.',
+        confirmText: 'Hapus',
+        onConfirm: () => confirmDeleteProductionPlan(id)
+    });
+}
+
+/**
+ * Call the API to delete the plan
+ */
+async function confirmDeleteProductionPlan(id) {
+    try {
+        await apiDelete(`/production/${id}`);
+        showSuccess('Rencana produksi berhasil dihapus.');
+        await loadProductionPlans();
+    } catch (error) {
+        showErrorAlert(error.message || 'Gagal menghapus rencana produksi.');
+    }
 }

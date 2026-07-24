@@ -121,6 +121,9 @@
                     <button onclick="showTab('reports')" class="tab-btn px-6 py-3 font-semibold text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 whitespace-nowrap">
                         📊 Laporan
                     </button>
+                    <button onclick="showTab('production')" class="tab-btn px-6 py-3 font-semibold text-gray-600 hover:text-indigo-600 border-b-2 border-transparent hover:border-indigo-600 whitespace-nowrap">
+                        🏭 Produksi
+                    </button>
                 </div>
             </div>
         </div>
@@ -319,6 +322,28 @@
                     <!-- Report Content -->
                     <div id="report-content">
                         <p class="text-gray-500 text-center py-8">Pilih periode untuk melihat laporan</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ========================================
+                 TAB: PRODUCTION
+                 ======================================== -->
+            <div id="tab-production" class="tab-content hidden">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-6">
+                        <h2 class="text-2xl font-bold text-gray-800">🏭 Rencana Produksi & Stok</h2>
+                        <button
+                            onclick="showAddProductionForm()"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-semibold"
+                        >
+                            + Tambah Rencana
+                        </button>
+                    </div>
+
+                    <!-- Production List Table -->
+                    <div id="production-list">
+                        <p class="text-gray-500 text-center py-8">Loading...</p>
                     </div>
                 </div>
             </div>
