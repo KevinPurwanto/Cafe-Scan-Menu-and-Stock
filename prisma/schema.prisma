@@ -44,6 +44,7 @@ model MenuItem {
 
   category MenuCategory? @relation(fields: [categoryId], references: [id])
   orderItems OrderItem[]
+  productions Production[]
 
   @@map("menu_items")
 }
@@ -130,4 +131,19 @@ model PotentialLoss {
   recordedAt     DateTime @default(now()) @map("recorded_at")
 
   @@map("potential_losses")
+}
+
+model Production {
+  id              String   @id @default(uuid())
+  date            DateTime @map("date")
+  menuItemId      String   @map("menu_item_id")
+  quantity        Int      @map("quantity")
+  batch           String   @map("batch")
+  status          String   @default("Belum diproduksi") @db.VarChar(50) @map("status")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  menuItem        MenuItem @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+
+  @@map("productions")
 }
