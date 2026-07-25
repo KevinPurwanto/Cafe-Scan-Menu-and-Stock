@@ -138,7 +138,7 @@ model Production {
   date            DateTime @map("date")
   menuItemId      String   @map("menu_item_id")
   quantity        Int      @map("quantity")
-  batch           String   @map("batch")
+  batch           Int      @map("batch")
   status          String   @default("Belum diproduksi") @db.VarChar(50) @map("status")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
