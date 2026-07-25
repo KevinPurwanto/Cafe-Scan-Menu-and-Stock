@@ -8,7 +8,7 @@ const CreateProductionSchema = z.object({
   date: z.coerce.date(),
   menuItemId: z.string().uuid(),
   quantity: z.number().int().positive(),
-  batch: z.string().min(1),
+  batch: z.number().int().positive(),
   status: z.enum(["Belum diproduksi", "Sedang diproduksi", "Selesai"]).default("Belum diproduksi")
 });
 
@@ -146,11 +146,7 @@ export async function deleteProductionPlan(req: Request, res: Response) {
     throw new HttpError(404, "Data produksi tidak ditemukan");
   }
 
-  // Once status is "Selesai" (final), it cannot be deleted
-  if (existing.status === "Selesai") {
-    throw new HttpError(400, "Data produksi yang sudah selesai/final tidak dapat dihapus");
-  }
-
+  // Status "Selesai" (final) may be deleted, but stock already added is left untouched
   await prisma.production.delete({
     where: { id }
   });

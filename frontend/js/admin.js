@@ -2640,7 +2640,7 @@ function renderProductionPlans() {
 
         const productName = plan.menuItem ? plan.menuItem.name : 'Produk Tidak Dikenal';
         const qtyText = `${plan.quantity} pcs`;
-        const batchText = plan.batch;
+        const batchText = `${plan.batch} batch`;
 
         // Status badge styling
         let statusBadgeClass = 'bg-yellow-100 text-yellow-800';
@@ -2653,8 +2653,18 @@ function renderProductionPlans() {
         // Actions
         let actionHtml = '';
         if (plan.status === 'Selesai') {
-            // Immutable row
-            actionHtml = `<span class="text-gray-400 text-sm italic font-semibold">🔒 Final</span>`;
+            // Final: cannot be edited anymore, but can still be deleted
+            actionHtml = `
+                <div class="flex items-center gap-2">
+                    <span class="text-gray-400 text-xs italic font-semibold">🔒 Final</span>
+                    <button
+                        onclick="deleteProductionPlan('${plan.id}')"
+                        class="bg-red-100 hover:bg-red-200 text-red-700 text-xs px-3 py-1.5 rounded font-semibold transition-colors"
+                    >
+                        Hapus
+                    </button>
+                </div>
+            `;
         } else {
             // Non-final can be edited (date and status) or deleted
             actionHtml = `
@@ -2762,12 +2772,13 @@ function showAddProductionForm() {
                     >
                 </div>
                 <div>
-                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Batch</label>
+                    <label class="block text-gray-700 font-semibold mb-1 text-sm">Jumlah Batch</label>
                     <input
-                        type="text"
+                        type="number"
                         id="prod-batch"
-                        value="1 batch"
-                        placeholder="1 batch"
+                        min="1"
+                        value="1"
+                        placeholder="1"
                         required
                         class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
                     >
@@ -2805,7 +2816,7 @@ async function submitAddProduction(event) {
     const dateVal = document.getElementById('prod-date').value;
     const menuItemId = document.getElementById('prod-menuitem').value;
     const quantity = parseInt(document.getElementById('prod-quantity').value, 10);
-    const batch = document.getElementById('prod-batch').value.trim();
+    const batch = parseInt(document.getElementById('prod-batch').value, 10);
     const status = document.getElementById('prod-status').value;
 
     if (!menuItemId) {
@@ -2818,8 +2829,8 @@ async function submitAddProduction(event) {
         return;
     }
 
-    if (!batch) {
-        showErrorAlert('Batch harus diisi.');
+    if (isNaN(batch) || batch <= 0) {
+        showErrorAlert('Jumlah batch harus berupa angka positif.');
         return;
     }
 
@@ -2890,7 +2901,7 @@ function showEditProductionForm(id) {
                     <label class="block text-gray-700 font-semibold mb-1 text-sm">Batch (Tidak bisa diedit)</label>
                     <input
                         type="text"
-                        value="${plan.batch}"
+                        value="${plan.batch} batch"
                         disabled
                         class="w-full border border-gray-200 bg-gray-50 text-gray-500 rounded-lg px-3 py-2 text-sm cursor-not-allowed"
                     >
@@ -2946,9 +2957,14 @@ async function submitEditProduction(event, id) {
  * Trigger confirmation and delete a production plan
  */
 function deleteProductionPlan(id) {
+    const plan = productionPlans.find(p => p.id === id);
+    const isFinal = plan && plan.status === 'Selesai';
+
     openConfirmModal({
         title: 'Hapus Rencana Produksi',
-        message: 'Apakah Anda yakin ingin menghapus rencana produksi ini? Tindakan ini tidak dapat dibatalkan.',
+        message: isFinal
+            ? 'Data produksi ini berstatus Selesai (final). Stok menu yang sudah ditambahkan TIDAK akan dikurangi otomatis. Apakah Anda yakin ingin menghapus data ini?'
+            : 'Apakah Anda yakin ingin menghapus rencana produksi ini? Tindakan ini tidak dapat dibatalkan.',
         confirmText: 'Hapus',
         onConfirm: () => confirmDeleteProductionPlan(id)
     });
